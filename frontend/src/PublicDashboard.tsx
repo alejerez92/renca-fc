@@ -1,0 +1,304 @@
+import { useState, useEffect } from 'react'
+import axios from 'axios'
+import { Trophy, Users, Calendar, ChevronRight, Menu, X, Shield, Medal, Star } from 'lucide-react'
+import MatchDetailModal from './MatchDetailModal'
+import ClubDetailModal from './ClubDetailModal'
+
+const API_BASE_URL = 'http://localhost:8000'
+
+interface Category {
+  id: number
+  name: string
+  parent_category: string | null
+}
+
+interface LeaderboardEntry {
+  club_id: number
+  club_name: string
+  logo_url: string | null
+  pj: number; pg: number; pe: number; pp: number; gf: number; gc: number; dg: number; pts: number
+}
+
+function PublicDashboard() {
+  const [categories, setCategories] = useState<Category[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | 'adultos'>(1)
+  const [adultSeries, setAdultSeries] = useState<'HONOR' | 'ASCENSO'>('HONOR')
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [loading, setLoading] = useState(false)
+  const [activeView, setActiveView] = useState<'table' | 'fixture' | 'scorers'>('table')
+  
+  const [matchDays, setMatchDays] = useState<any[]>([])
+  const [matches, setMatches] = useState<any[]>([])
+  const [scorers, setScorers] = useState<any[]>([])
+  const [showAllMatchDays, setShowAllMatchDays] = useState(false)
+  const [viewingMatch, setViewingMatch] = useState<any>(null)
+  const [viewingClub, setViewingClub] = useState<number | null>(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+
+  useEffect(() => {
+    fetchCategories()
+    fetchMatchDays()
+  }, [])
+
+  useEffect(() => {
+    if (activeView === 'fixture') {
+      fetchMatches()
+      const interval = setInterval(fetchMatches, 10000)
+      return () => clearInterval(interval)
+    } else if (activeView === 'scorers') {
+      fetchScorers()
+    } else if (selectedCategoryId) {
+      fetchLeaderboard()
+    }
+  }, [selectedCategoryId, adultSeries, activeView])
+
+  const fetchCategories = async () => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/categories`)
+      setCategories(res.data)
+      if (res.data.length > 0 && !selectedCategoryId) setSelectedCategoryId(res.data[0].id)
+    } catch (e) { console.error(e) }
+  }
+
+  const fetchMatchDays = async () => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/match-days`)
+      setMatchDays(res.data || [])
+    } catch (e) { console.error(e) }
+  }
+
+  const fetchLeaderboard = async () => {
+    setLoading(true)
+    try {
+      let url = `${API_BASE_URL}/leaderboard/${selectedCategoryId}?series=${adultSeries}`
+      if (selectedCategoryId === 'adultos') url = `${API_BASE_URL}/leaderboard/aggregated/adultos?series=${adultSeries}`
+      const res = await axios.get(url)
+      setLeaderboard(res.data || [])
+    } catch (e) { console.error(e) } finally { setLoading(false) }
+  }
+
+  const fetchMatches = async () => {
+    if (selectedCategoryId === 'adultos') return setMatches([])
+    setLoading(true)
+    try {
+      const res = await axios.get(`${API_BASE_URL}/matches/${selectedCategoryId}?series=${adultSeries}`)
+      setMatches(res.data || [])
+    } catch (e) { console.error(e) } finally { setLoading(false) }
+  }
+
+  const fetchScorers = async () => {
+    setLoading(true)
+    try {
+        const res = await axios.get(`${API_BASE_URL}/top-scorers/${selectedCategoryId}?series=${adultSeries}`)
+        setScorers(res.data || [])
+    } catch (e) {
+        console.error(e)
+        setScorers([])
+    } finally {
+        setLoading(false)
+    }
+  }
+
+  const getMatchesByDay = () => {
+    const grouped: Record<string, any[]> = {}
+    if (!matchDays) return {}
+    const now = new Date()
+    let visibleDays = showAllMatchDays ? matchDays : matchDays.filter(day => new Date(day.end_date) >= now)
+    if (visibleDays.length === 0 && matchDays.length > 0 && !showAllMatchDays) visibleDays = [[...matchDays].sort((a,b) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime())[0]]
+    visibleDays.forEach(day => { grouped[day.name] = [] })
+    if (showAllMatchDays) grouped['Otros'] = []
+    matches.forEach(m => {
+      const mDate = new Date(m.match_date)
+      let found = false
+      for (const d of visibleDays) {
+        const start = new Date(d.start_date); const end = new Date(d.end_date); end.setHours(23,59,59,999)
+        if (mDate >= start && mDate <= end) { grouped[d.name].push(m); found = true; break }
+      }
+      if (!found && showAllMatchDays) grouped['Otros']?.push(m)
+    })
+    return grouped
+  }
+
+  const getCategoryName = () => {
+    if (selectedCategoryId === 'adultos') return `General Adultos - ${adultSeries}`
+    return categories.find(c => c.id === selectedCategoryId)?.name || 'Cargando...'
+  }
+
+  return (
+    <div className="flex h-screen bg-gray-900 text-gray-100 font-sans">
+      {/* Sidebar */}
+      <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-gray-800 border-r border-gray-700 transition-all duration-300 flex flex-col`}>
+        <div className="p-6 flex items-center gap-3">
+          <Trophy className="text-yellow-500 w-8 h-8 flex-shrink-0" />
+          {isSidebarOpen && <h1 className="text-xl font-bold tracking-tight uppercase">Renca FC</h1>}
+        </div>
+        <nav className="flex-1 overflow-y-auto px-3 space-y-1">
+          <button onClick={() => { setSelectedCategoryId('adultos'); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${selectedCategoryId === 'adultos' ? 'bg-indigo-600 text-white' : 'hover:bg-gray-700 text-gray-400'}`}>
+            <Users className="w-5 h-5 flex-shrink-0" />
+            {isSidebarOpen && <span className="text-sm font-medium">General Adultos</span>}
+          </button>
+          <div className="h-px bg-gray-700 my-2 mx-3"></div>
+          {categories.map((cat) => (
+            <button key={cat.id} onClick={() => { setSelectedCategoryId(cat.id); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${selectedCategoryId === cat.id ? 'bg-indigo-600 text-white' : 'hover:bg-gray-700 text-gray-400'}`}>
+              <div className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-[10px] font-bold bg-gray-700 rounded text-gray-300">{cat.name.substring(0, 2)}</div>
+              {isSidebarOpen && <span className="text-sm font-medium truncate">{cat.name}</span>}
+            </button>
+          ))}
+        </nav>
+        <div className="p-4 border-t border-gray-700">
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="w-full flex justify-center p-2 hover:bg-gray-700 rounded-lg">{isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}</button>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main className="flex-1 overflow-y-auto flex flex-col">
+        <header className="h-16 border-b border-gray-700 bg-gray-800/50 flex items-center px-8 justify-between sticky top-0 backdrop-blur-sm z-10">
+          <div className="flex items-center gap-4">
+             <h2 className="text-lg font-bold flex items-center gap-2 uppercase tracking-tight">
+               {getCategoryName()}
+             </h2>
+             <div className="flex bg-gray-900 rounded-full p-1 border border-gray-700">
+                <button onClick={() => setAdultSeries('HONOR')} className={`px-4 py-1 rounded-full text-[10px] font-black transition-all ${adultSeries === 'HONOR' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}>HONOR</button>
+                <button onClick={() => setAdultSeries('ASCENSO')} className={`px-4 py-1 rounded-full text-[10px] font-black transition-all ${adultSeries === 'ASCENSO' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}>ASCENSO</button>
+             </div>
+          </div>
+          
+          <div className="flex gap-2">
+             <button onClick={() => setActiveView('table')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeView === 'table' ? 'bg-gray-700 text-white border border-gray-600' : 'text-gray-500 hover:text-gray-300'}`}>TABLA</button>
+             <button onClick={() => setActiveView('fixture')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeView === 'fixture' ? 'bg-gray-700 text-white border border-gray-600' : 'text-gray-500 hover:text-gray-300'}`}>FIXTURE</button>
+             <button onClick={() => setActiveView('scorers')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeView === 'scorers' ? 'bg-gray-700 text-white border border-gray-600' : 'text-gray-500 hover:text-gray-300'}`}>GOLEADORES</button>
+          </div>
+        </header>
+
+        <div className="p-8 max-w-6xl mx-auto w-full">
+          
+          {/* --- VISTA: TABLA POSICIONES (RESTAURADA COMPLETA) --- */}
+          {activeView === 'table' && (
+            <div className="bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden shadow-2xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-gray-900/50 text-gray-500 text-[10px] uppercase font-bold tracking-widest">
+                        <th className="px-6 py-4">Pos</th>
+                        <th className="px-6 py-4">Club</th>
+                        <th className="px-6 py-4 text-center">PJ</th>
+                        <th className="px-6 py-4 text-center text-green-400">PG</th>
+                        <th className="px-6 py-4 text-center text-yellow-400">PE</th>
+                        <th className="px-6 py-4 text-center text-red-400">PP</th>
+                        <th className="px-6 py-4 text-center">GF</th>
+                        <th className="px-6 py-4 text-center">GC</th>
+                        <th className="px-6 py-4 text-center">DG</th>
+                        <th className="px-6 py-4 text-center text-white bg-gray-700/30">PTS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700">
+                        {leaderboard.map((entry, index) => (
+                          <tr key={index} className="hover:bg-gray-750 transition-colors group">
+                            <td className="px-6 py-4 font-black text-gray-500">{index + 1}</td>
+                            <td className="px-6 py-4 cursor-pointer" onClick={() => setViewingClub(entry.club_id)}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center p-1">{entry.logo_url ? <img src={entry.logo_url} className="w-full h-full object-contain" /> : <Shield className="w-4 h-4" />}</div>
+                                <span className="font-bold group-hover:text-indigo-400 transition-colors">{entry.club_name}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-center">{entry.pj}</td>
+                            <td className="px-6 py-4 text-center text-green-400/80">{entry.pg}</td>
+                            <td className="px-6 py-4 text-center text-yellow-400/80">{entry.pe}</td>
+                            <td className="px-6 py-4 text-center text-red-400/80">{entry.pp}</td>
+                            <td className="px-6 py-4 text-center text-gray-400">{entry.gf}</td>
+                            <td className="px-6 py-4 text-center text-gray-400">{entry.gc}</td>
+                            <td className="px-6 py-4 text-center font-medium">{entry.dg > 0 ? `+${entry.dg}` : entry.dg}</td>
+                            <td className="px-6 py-4 text-center bg-gray-700/10 font-black text-indigo-400">{entry.pts}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+            </div>
+          )}
+
+          {/* --- VISTA: FIXTURE --- */}
+          {activeView === 'fixture' && (
+            <div className="space-y-8">
+              <button onClick={() => setShowAllMatchDays(!showAllMatchDays)} className="text-[10px] font-black text-indigo-400 uppercase tracking-widest border border-indigo-500/30 px-3 py-1 rounded-lg ml-auto block">{showAllMatchDays ? 'Ocultar pasados' : 'Ver todo'}</button>
+              {Object.entries(getMatchesByDay()).map(([dayName, dayMatches]) => (
+                dayMatches.length > 0 && (
+                  <div key={dayName}>
+                    <h3 className="text-sm font-black text-yellow-500 mb-4 uppercase tracking-widest border-l-4 border-yellow-500 pl-3">{dayName}</h3>
+                    <div className="grid gap-3">
+                      {dayMatches.map((m) => (
+                        <div key={m.id} onClick={() => setViewingMatch(m)} className="bg-gray-800 border border-gray-700 p-4 rounded-xl flex items-center justify-between hover:border-gray-500 transition-all cursor-pointer">
+                          <div className="flex-1 text-right font-bold text-sm sm:text-base pr-4" onClick={(e) => { e.stopPropagation(); setViewingClub(m.home_team.club.id); }}>{m.home_team.club.name}</div>
+                          <div className="bg-gray-900 px-4 py-2 rounded-lg flex items-center gap-3 border border-gray-700">
+                             <span className="text-xl font-black">{m.home_score}</span>
+                             <span className="text-gray-600 font-bold">-</span>
+                             <span className="text-xl font-black">{m.away_score}</span>
+                          </div>
+                          <div className="flex-1 text-left font-bold text-sm sm:text-base pl-4" onClick={(e) => { e.stopPropagation(); setViewingClub(m.away_team.club.id); }}>{m.away_team.club.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              ))}
+            </div>
+          )}
+
+          {/* --- VISTA: GOLEADORES --- */}
+          {activeView === 'scorers' && (
+            <div className="space-y-12">
+               {/* Podio ordenado visualmente: 2 - 1 - 3 */}
+               <div className="flex flex-col sm:flex-row items-end justify-center gap-4 pt-10">
+                  {[1, 0, 2].map((pos) => {
+                      const scorer = scorers[pos];
+                      if(!scorer) return null;
+                      return (
+                        <div key={scorer.player_id} className={`flex flex-col items-center group w-full sm:w-48 ${pos === 0 ? 'mb-6 sm:mb-10 scale-110 z-10' : ''}`}>
+                           <div className="relative mb-2">
+                              <div className={`rounded-full flex items-center justify-center border-4 shadow-2xl transition-transform group-hover:scale-110 bg-gray-800 ${pos === 0 ? 'w-28 h-28 border-yellow-500' : pos === 1 ? 'w-20 h-20 border-gray-400' : 'w-20 h-20 border-orange-600'}`}>
+                                 {scorer.club_logo ? <img src={scorer.club_logo} className="w-12 h-12 object-contain" /> : <Shield className="w-8 h-8 text-gray-600" />}
+                              </div>
+                              <div className={`absolute -bottom-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center font-black text-sm border-2 ${pos === 0 ? 'bg-yellow-500 border-yellow-300 text-yellow-900' : pos === 1 ? 'bg-gray-400 border-gray-200 text-gray-800' : 'bg-orange-600 border-orange-400 text-orange-100'}`}>
+                                 {pos + 1}
+                              </div>
+                           </div>
+                           <h4 className="font-black text-center text-sm truncate w-full">{scorer.player_name}</h4>
+                           <p className="text-[10px] text-gray-500 uppercase font-bold">{scorer.club_name}</p>
+                           <div className="mt-2 bg-indigo-600 px-4 py-1 rounded-full text-white font-black text-lg shadow-lg">{scorer.goals} <span className="text-[10px] font-bold">GOLES</span></div>
+                        </div>
+                      )
+                  })}
+               </div>
+
+               {/* Tabla Resto */}
+               <div className="bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden shadow-2xl">
+                  <table className="w-full text-left">
+                     <thead className="bg-gray-900/50 text-gray-500 text-[10px] uppercase font-bold tracking-widest">
+                        <tr><th className="px-6 py-4">Ranking</th><th className="px-6 py-4">Jugador</th><th className="px-6 py-4">Club</th><th className="px-6 py-4 text-center bg-gray-700/30 text-white">Goles</th></tr>
+                     </thead>
+                     <tbody className="divide-y divide-gray-700">
+                        {scorers.map((s, index) => (
+                           <tr key={s.player_id} className="hover:bg-gray-750 transition-colors">
+                              <td className="px-6 py-4 font-bold text-gray-500">{index + 1}</td>
+                              <td className="px-6 py-4 font-bold text-white">{s.player_name}</td>
+                              <td className="px-6 py-4 text-xs text-gray-400 uppercase font-medium">{s.club_name}</td>
+                              <td className="px-6 py-4 text-center font-black text-indigo-400 text-lg">{s.goals}</td>
+                           </tr>
+                        ))}
+                        {scorers.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-500 italic">No hay goles registrados todavía para esta selección.</td></tr>}
+                     </tbody>
+                  </table>
+               </div>
+            </div>
+          )}
+
+        </div>
+      </main>
+
+      {viewingMatch && <MatchDetailModal match={viewingMatch} onClose={() => setViewingMatch(null)} />}
+      {viewingClub && <ClubDetailModal clubId={viewingClub} onClose={() => setViewingClub(null)} />}
+    </div>
+  )
+}
+
+export default PublicDashboard

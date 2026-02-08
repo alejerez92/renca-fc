@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Database
+backend/renca_fc.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+.DS_Store
