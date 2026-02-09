@@ -63,6 +63,12 @@ def read_teams(category_id: int, db: Session = Depends(get_db)):
 def read_team_players(team_id: int, db: Session = Depends(get_db)):
     return crud.get_team_players(db, team_id)
 
+@app.delete("/teams/{team_id}")
+def delete_team(team_id: int, db: Session = Depends(get_db)):
+    if crud.delete_team(db, team_id):
+        return {"message": "Equipo eliminado correctamente"}
+    raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
 @app.put("/players/{player_id}", response_model=schemas.Player)
 def update_player(player_id: int, player: schemas.PlayerUpdate, db: Session = Depends(get_db)):
     db_player = crud.update_player(db, player_id, player)

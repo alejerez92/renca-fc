@@ -118,6 +118,15 @@ def delete_match(db: Session, match_id: int):
         return True
     return False
 
+def delete_team(db: Session, team_id: int):
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if team:
+        # Opcional: Verificar si ya tiene partidos jugados antes de borrar
+        db.delete(team)
+        db.commit()
+        return True
+    return False
+
 # --- Eventos y Jugadores ---
 def get_match_players(db: Session, match_id: int):
     match = db.query(Match).filter(Match.id == match_id).first()
