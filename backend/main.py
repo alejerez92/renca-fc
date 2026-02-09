@@ -118,6 +118,10 @@ def read_match_players(match_id: int, db: Session = Depends(get_db)):
 def read_match_events(match_id: int, db: Session = Depends(get_db)):
     return crud.get_match_events(db, match_id)
 
+@app.get("/matches/{match_id}/audit")
+def read_match_audit(match_id: int, db: Session = Depends(get_db)):
+    return crud.get_match_audit_logs(db, match_id)
+
 @app.get("/top-scorers/{category_id}")
 def read_top_scorers(category_id: str, series: str = "HONOR", db: Session = Depends(get_db)):
     return crud.get_top_scorers(db, category_id, series)

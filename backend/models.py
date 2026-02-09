@@ -74,6 +74,7 @@ class Match(Base):
     venue = relationship("Venue", back_populates="matches")
     home_team = relationship("Team", foreign_keys=[home_team_id])
     away_team = relationship("Team", foreign_keys=[away_team_id])
+    audit_logs = relationship("AuditLog", back_populates="match")
 
 class MatchEvent(Base):
     __tablename__ = "match_events"
@@ -100,3 +101,5 @@ class AuditLog(Base):
     action = Column(String) # "GOAL_ADDED", "GOAL_REMOVED", "MATCH_FINISHED", "MATCH_REOPENED"
     details = Column(String) # "Gol de Pepito (Min 25)"
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+    match = relationship("Match", back_populates="audit_logs")

@@ -99,6 +99,9 @@ def update_match_result(db: Session, match_id: int, result: schemas.MatchUpdateR
 def get_audit_logs(db: Session, limit: int = 100):
     return db.query(AuditLog).options(joinedload(AuditLog.match)).order_by(AuditLog.timestamp.desc()).limit(limit).all()
 
+def get_match_audit_logs(db: Session, match_id: int):
+    return db.query(AuditLog).filter(AuditLog.match_id == match_id).order_by(AuditLog.timestamp.desc()).all()
+
 def update_match_details(db: Session, match_id: int, match: schemas.MatchUpdate):
     db_match = db.query(Match).filter(Match.id == match_id).first()
     if db_match:
