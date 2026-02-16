@@ -1,8 +1,19 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, func, desc
-from models import Club, Category, Team, Match, MatchEvent, Player, Venue, MatchDay, AuditLog
+from models import Club, Category, Team, Match, MatchEvent, Player, Venue, MatchDay, AuditLog, User
 import schemas
 import pandas as pd
+
+# --- Users ---
+def get_user_by_username(db: Session, username: str):
+    return db.query(User).filter(User.username == username).first()
+
+def create_user(db: Session, user: schemas.UserCreate, hashed_password: str):
+    db_user = User(username=user.username, hashed_password=hashed_password)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
 # --- Creación ---
 def create_match_day(db: Session, match_day: schemas.MatchDayCreate):
@@ -159,10 +170,10 @@ def create_match_event(db: Session, event: schemas.MatchEventCreate):
                 match.home_score += 1
             elif player.team_id == match.away_team_id:
                 match.away_score += 1
-            # Eliminado: match.is_played = True (Ahora es manual)
             
-    # Registrar Auditoría
-    log_msg = f"{event.event_type} - Jugador ID {event.player_id} (Min {event.minute})"
+    # Registrar Auditoría con NOMBRE
+    player_name = db.query(Player.name).filter(Player.id == event.player_id).scalar() or "Jugador Desconocido"
+    log_msg = f"{event.event_type} - {player_name} (Min {event.minute})"
     db.add(AuditLog(match_id=event.match_id, action="EVENT_ADDED", details=log_msg))
 
     db.commit()
@@ -174,6 +185,9 @@ def delete_match_event(db: Session, event_id: int):
     if not db_event:
         return False
         
+    # Obtener nombre antes de borrar para el log
+    player_name = db.query(Player.name).filter(Player.id == db_event.player_id).scalar() or "Jugador Desconocido"
+
     # Si es gol, restar marcador antes de borrar
     if db_event.event_type == "GOAL":
         match = db.query(Match).filter(Match.id == db_event.match_id).first()
@@ -186,7 +200,7 @@ def delete_match_event(db: Session, event_id: int):
                 match.away_score = max(0, match.away_score - 1)
     
     # Registrar Auditoría
-    log_msg = f"{db_event.event_type} borrado - Jugador ID {db_event.player_id}"
+    log_msg = f"{db_event.event_type} eliminado - {player_name}"
     db.add(AuditLog(match_id=db_event.match_id, action="EVENT_REMOVED", details=log_msg))
 
     db.delete(db_event)
