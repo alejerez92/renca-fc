@@ -1,4 +1,3 @@
-# Renca FC Backend - Deployment Version 1.0.1
 from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
@@ -14,7 +13,7 @@ import io
 import os
 
 # Configuración de Seguridad
-SECRET_KEY = "renca-fc-secret-key-super-secure" # En producción usar variable de entorno
+SECRET_KEY = os.getenv("SECRET_KEY", "renca-fc-secret-key-super-secure")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 1 semana
 
@@ -80,29 +79,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise credentials_exception
     return user
 
-# Endpoint de diagnóstico (BORRAR DESPUÉS)
-@app.get("/debug-auth")
-def debug_auth(db: Session = Depends(get_db)):
-    from database import SQLALCHEMY_DATABASE_URL
-    user = crud.get_user_by_username(db, username="admin_renca")
-    
-    # Ofuscar URL para seguridad
-    db_url_safe = SQLALCHEMY_DATABASE_URL.split("@")[-1] if "@" in SQLALCHEMY_DATABASE_URL else "local/sqlite"
-    
-    test_pass = "renca2026"
-    verification = "N/A"
-    if user:
-        try:
-            verification = bcrypt.checkpw(test_pass.encode('utf-8'), user.hashed_password.encode('utf-8'))
-        except: verification = "Error"
-
-    return {
-        "connected_to_db_host": db_url_safe,
-        "user_found": user is not None,
-        "verification_success": verification,
-        "bcrypt_version": str(bcrypt.__version__) if hasattr(bcrypt, "__version__") else "unknown"
-    }
-
 # --- Rutas de Auth ---
 
 @app.post("/token", response_model=schemas.Token)
@@ -119,14 +95,6 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
-
-# Endpoint temporal para crear el primer usuario (borrar o proteger después)
-@app.post("/users", response_model=schemas.User)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    db_user = crud.get_user_by_username(db, username=user.username)
-    if db_user:
-        raise HTTPException(status_code=400, detail="El usuario ya existe")
-    return crud.create_user(db=db, user=user, hashed_password=get_password_hash(user.password))
 
 # --- Rutas Públicas ---
 
