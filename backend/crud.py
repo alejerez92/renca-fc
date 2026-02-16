@@ -471,6 +471,7 @@ def get_club_full_details(db: Session, club_id: int):
         "id": club.id,
         "name": club.name,
         "logo_url": club.logo_url,
+        "league_series": club.league_series,
         "categories": categories_data
     }
 
