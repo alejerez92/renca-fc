@@ -80,6 +80,25 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise credentials_exception
     return user
 
+# Endpoint de diagnóstico (BORRAR DESPUÉS)
+@app.get("/debug-auth")
+def debug_auth(db: Session = Depends(get_db)):
+    user = crud.get_user_by_username(db, username="admin_renca")
+    if not user:
+        return {"error": "Usuario no encontrado en la DB"}
+    
+    test_pass = "renca2026"
+    try:
+        is_ok = bcrypt.checkpw(test_pass.encode('utf-8'), user.hashed_password.encode('utf-8'))
+        return {
+            "username": user.username,
+            "hash_in_db": user.hashed_password,
+            "verification_success": is_ok,
+            "bcrypt_module": str(bcrypt.__version__) if hasattr(bcrypt, "__version__") else "unknown"
+        }
+    except Exception as e:
+        return {"error": str(e), "type": str(type(e))}
+
 # --- Rutas de Auth ---
 
 @app.post("/token", response_model=schemas.Token)
