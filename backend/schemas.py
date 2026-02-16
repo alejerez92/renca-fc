@@ -33,6 +33,25 @@ class Category(CategoryBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
 
+# --- User & Auth ---
+class UserBase(BaseModel):
+    username: str
+
+class UserCreate(UserBase):
+    password: str
+
+class User(UserBase):
+    id: int
+    is_active: bool
+    model_config = ConfigDict(from_attributes=True)
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
 # --- Team ---
 class TeamBase(BaseModel):
     club_id: int
@@ -152,25 +171,6 @@ class AuditLog(AuditLogBase):
     id: int
     user: Optional[User] = None
     model_config = ConfigDict(from_attributes=True)
-
-# --- User & Auth ---
-class UserBase(BaseModel):
-    username: str
-
-class UserCreate(UserBase):
-    password: str
-
-class User(UserBase):
-    id: int
-    is_active: bool
-    model_config = ConfigDict(from_attributes=True)
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class TokenData(BaseModel):
-    username: Optional[str] = None
 
 # --- Club Complex Details ---
 
