@@ -264,9 +264,9 @@ def get_leaderboard(db: Session, category_id: int, series: str = "HONOR"):
             "gf": 0, "gc": 0, "dg": 0, "pts": 0
         }
         
-        # Buscar partidos jugados por este equipo
+        # TABLA EN VIVO: Considerar partidos finalizados O partidos con goles (en progreso)
         matches = db.query(Match).filter(
-            Match.is_played == True,
+            or_(Match.is_played == True, Match.home_score > 0, Match.away_score > 0),
             or_(Match.home_team_id == team.id, Match.away_team_id == team.id)
         ).all()
         
@@ -324,8 +324,9 @@ def get_aggregated_adultos_leaderboard(db: Session, series: str = "HONOR"):
         
         for team in teams:
             cat = next(c for c in adult_categories if c.id == team.category_id)
+            # TABLA EN VIVO: Considerar partidos finalizados O partidos con goles (en progreso)
             matches = db.query(Match).filter(
-                Match.is_played == True,
+                or_(Match.is_played == True, Match.home_score > 0, Match.away_score > 0),
                 or_(Match.home_team_id == team.id, Match.away_team_id == team.id)
             ).all()
             
