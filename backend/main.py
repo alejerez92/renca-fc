@@ -212,15 +212,15 @@ def delete_match(match_id: int, db: Session = Depends(get_db), current_user: mod
 
 @app.put("/matches/{match_id}/result", response_model=schemas.Match)
 def update_match_result(match_id: int, result: schemas.MatchUpdateResult, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    return crud.update_match_result(db, match_id, result)
+    return crud.update_match_result(db, match_id, result, user_id=current_user.id)
 
 @app.post("/match-events", response_model=schemas.MatchEvent)
 def create_match_event(event: schemas.MatchEventCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    return crud.create_match_event(db, event)
+    return crud.create_match_event(db, event, user_id=current_user.id)
 
 @app.delete("/match-events/{event_id}")
 def delete_match_event(event_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if crud.delete_match_event(db, event_id):
+    if crud.delete_match_event(db, event_id, user_id=current_user.id):
         return {"message": "Evento eliminado"}
     raise HTTPException(status_code=404, detail="Evento no encontrado")
 

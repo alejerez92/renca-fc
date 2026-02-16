@@ -143,12 +143,14 @@ class MatchDay(MatchDayBase):
 # --- Audit Log ---
 class AuditLogBase(BaseModel):
     match_id: Optional[int] = None
+    user_id: Optional[int] = None
     action: str
     details: str
     timestamp: datetime
 
 class AuditLog(AuditLogBase):
     id: int
+    user: Optional[User] = None
     model_config = ConfigDict(from_attributes=True)
 
 # --- User & Auth ---

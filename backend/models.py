@@ -98,11 +98,13 @@ class AuditLog(Base):
     __tablename__ = 'audit_logs'
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(Integer, ForeignKey('matches.id'))
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True) # Quién lo hizo
     action = Column(String) # "GOAL_ADDED", "GOAL_REMOVED", "MATCH_FINISHED", "MATCH_REOPENED"
     details = Column(String) # "Gol de Pepito (Min 25)"
     timestamp = Column(DateTime, default=datetime.utcnow)
 
     match = relationship("Match", back_populates="audit_logs")
+    user = relationship("User")
 
 class User(Base):
     __tablename__ = "users"

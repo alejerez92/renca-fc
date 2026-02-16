@@ -92,7 +92,7 @@ def create_match(db: Session, match: schemas.MatchCreate):
     db.refresh(db_match)
     return db_match
 
-def update_match_result(db: Session, match_id: int, result: schemas.MatchUpdateResult):
+def update_match_result(db: Session, match_id: int, result: schemas.MatchUpdateResult, user_id: int = None):
     db_match = db.query(Match).filter(Match.id == match_id).first()
     if db_match:
         db_match.home_score = result.home_score
@@ -101,17 +101,17 @@ def update_match_result(db: Session, match_id: int, result: schemas.MatchUpdateR
         
         # Registrar Auditoría
         status_msg = "PARTIDO FINALIZADO" if result.is_played else "PARTIDO REABIERTO"
-        db.add(AuditLog(match_id=match_id, action="STATUS_CHANGE", details=f"{status_msg} - Marcador {result.home_score}-{result.away_score}"))
+        db.add(AuditLog(match_id=match_id, user_id=user_id, action="STATUS_CHANGE", details=f"{status_msg} - Marcador {result.home_score}-{result.away_score}"))
         
         db.commit()
         db.refresh(db_match)
     return db_match
 
 def get_audit_logs(db: Session, limit: int = 100):
-    return db.query(AuditLog).options(joinedload(AuditLog.match)).order_by(AuditLog.timestamp.desc()).limit(limit).all()
+    return db.query(AuditLog).options(joinedload(AuditLog.match), joinedload(AuditLog.user)).order_by(AuditLog.timestamp.desc()).limit(limit).all()
 
 def get_match_audit_logs(db: Session, match_id: int):
-    return db.query(AuditLog).filter(AuditLog.match_id == match_id).order_by(AuditLog.timestamp.desc()).all()
+    return db.query(AuditLog).options(joinedload(AuditLog.user)).filter(AuditLog.match_id == match_id).order_by(AuditLog.timestamp.desc()).all()
 
 def update_match_details(db: Session, match_id: int, match: schemas.MatchUpdate):
     db_match = db.query(Match).filter(Match.id == match_id).first()
@@ -156,7 +156,7 @@ def get_match_players(db: Session, match_id: int):
 def get_match_events(db: Session, match_id: int):
     return db.query(MatchEvent).options(joinedload(MatchEvent.player)).filter(MatchEvent.match_id == match_id).order_by(MatchEvent.minute).all()
 
-def create_match_event(db: Session, event: schemas.MatchEventCreate):
+def create_match_event(db: Session, event: schemas.MatchEventCreate, user_id: int = None):
     db_event = MatchEvent(**event.model_dump())
     db.add(db_event)
     
@@ -171,16 +171,16 @@ def create_match_event(db: Session, event: schemas.MatchEventCreate):
             elif player.team_id == match.away_team_id:
                 match.away_score += 1
             
-    # Registrar Auditoría con NOMBRE
+    # Registrar Auditoría con NOMBRE REAL
     player_name = db.query(Player.name).filter(Player.id == event.player_id).scalar() or "Jugador Desconocido"
     log_msg = f"{event.event_type} - {player_name} (Min {event.minute})"
-    db.add(AuditLog(match_id=event.match_id, action="EVENT_ADDED", details=log_msg))
+    db.add(AuditLog(match_id=event.match_id, user_id=user_id, action="EVENT_ADDED", details=log_msg))
 
     db.commit()
     db.refresh(db_event)
     return db_event
 
-def delete_match_event(db: Session, event_id: int):
+def delete_match_event(db: Session, event_id: int, user_id: int = None):
     db_event = db.query(MatchEvent).filter(MatchEvent.id == event_id).first()
     if not db_event:
         return False
@@ -200,8 +200,8 @@ def delete_match_event(db: Session, event_id: int):
                 match.away_score = max(0, match.away_score - 1)
     
     # Registrar Auditoría
-    log_msg = f"{db_event.event_type} eliminado - {player_name}"
-    db.add(AuditLog(match_id=db_event.match_id, action="EVENT_REMOVED", details=log_msg))
+    log_msg = f"{db_event.event_type} ELIMINADO - {player_name}"
+    db.add(AuditLog(match_id=db_event.match_id, user_id=user_id, action="EVENT_REMOVED", details=log_msg))
 
     db.delete(db_event)
     db.commit()
