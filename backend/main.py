@@ -333,3 +333,4 @@ async def upload_players(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+# Deploy Update: Mon Feb 16 23:58:56 -03 2026
