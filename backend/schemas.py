@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from datetime import datetime, date
 from typing import List, Optional
 
-# --- Token ---
+# 1. Base / Auth
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -10,7 +10,7 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     username: Optional[str] = None
 
-# --- User ---
+# 2. Usuarios
 class UserBase(BaseModel):
     username: str
 
@@ -21,7 +21,7 @@ class User(UserBase):
     id: int
     class Config: from_attributes = True
 
-# --- Category ---
+# 3. Categorías
 class CategoryBase(BaseModel):
     name: str
     parent_category: Optional[str] = None
@@ -29,27 +29,21 @@ class CategoryBase(BaseModel):
     points_draw: int = 1
     points_loss: int = 0
 
-class CategoryCreate(CategoryBase):
-    pass
-
 class Category(CategoryBase):
     id: int
     class Config: from_attributes = True
 
-# --- Team ---
+# 4. Equipos
 class TeamBase(BaseModel):
     club_id: int
     category_id: int
-
-class TeamCreate(TeamBase):
-    pass
 
 class Team(TeamBase):
     id: int
     category: Optional[Category] = None
     class Config: from_attributes = True
 
-# --- Club ---
+# 5. Clubes
 class ClubBase(BaseModel):
     name: str
     logo_url: Optional[str] = None
@@ -63,7 +57,7 @@ class Club(ClubBase):
     teams: List[Team] = []
     class Config: from_attributes = True
 
-# --- Player ---
+# 6. Jugadores
 class PlayerBase(BaseModel):
     name: str
     dni: str
@@ -84,16 +78,13 @@ class Player(PlayerBase):
     id: int
     class Config: from_attributes = True
 
-# --- Venue ---
-class VenueBase(BaseModel):
+# 7. Recintos y Fechas
+class Venue(BaseModel):
+    id: int
     name: str
     location: Optional[str] = None
-
-class Venue(VenueBase):
-    id: int
     class Config: from_attributes = True
 
-# --- MatchDay ---
 class MatchDayBase(BaseModel):
     name: str
     start_date: date
@@ -106,7 +97,7 @@ class MatchDay(MatchDayBase):
     id: int
     class Config: from_attributes = True
 
-# --- Match ---
+# 8. Partidos
 class MatchBase(BaseModel):
     category_id: int
     match_day_id: int
@@ -116,9 +107,6 @@ class MatchBase(BaseModel):
     match_date: datetime
 
 class MatchCreate(MatchBase):
-    pass
-
-class MatchUpdate(MatchBase):
     pass
 
 class MatchUpdateResult(BaseModel):
@@ -136,7 +124,7 @@ class Match(MatchBase):
     venue: Optional[Venue] = None
     class Config: from_attributes = True
 
-# --- Events ---
+# 9. Eventos
 class MatchEventBase(BaseModel):
     match_id: int
     player_id: int
@@ -151,7 +139,7 @@ class MatchEvent(MatchEventBase):
     player: Player
     class Config: from_attributes = True
 
-# --- Auditoría ---
+# 10. Auditoría (Simplificado)
 class AuditLog(BaseModel):
     id: int
     action: str
@@ -159,14 +147,13 @@ class AuditLog(BaseModel):
     timestamp: datetime
     user_id: Optional[int] = None
     user: Optional[User] = None
-    # Eliminamos la referencia circular pesada a Match para que el servidor no colapse
     class Config: from_attributes = True
 
-# --- Detalle Full Club ---
+# 11. Detalle Full Club
 class ClubCategoryDetail(BaseModel):
     category_name: str
     stats: dict
-    players: List[dict] # Usamos dict para flexibilidad total y evitar NameErrors
+    players: List[dict]
     past_matches: List[dict]
     upcoming_matches: List[dict]
 

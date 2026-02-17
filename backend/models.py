@@ -84,9 +84,8 @@ class MatchEvent(Base):
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(Integer, ForeignKey("matches.id"))
     player_id = Column(Integer, ForeignKey("players.id"))
-    event_type = Column(String) # GOAL, YELLOW_CARD, RED_CARD
+    event_type = Column(String)
     minute = Column(Integer, default=0)
-    
     match = relationship("Match", back_populates="match_events")
     player = relationship("Player")
 
@@ -98,6 +97,5 @@ class AuditLog(Base):
     action = Column(String)
     details = Column(Text)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    
     user = relationship("User", back_populates="audit_logs")
     match = relationship("Match", back_populates="audit_logs")
