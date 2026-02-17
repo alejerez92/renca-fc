@@ -101,7 +101,7 @@ def update_match_result(db: Session, match_id: int, result: schemas.MatchUpdateR
 
 # --- Auditoría ---
 def get_audit_logs(db: Session, limit: int = 100):
-    return db.query(AuditLog).options(joinedload(AuditLog.match), joinedload(AuditLog.user)).order_by(AuditLog.timestamp.desc()).limit(limit).all()
+    return db.query(AuditLog).options(joinedload(AuditLog.user)).order_by(AuditLog.timestamp.desc()).limit(limit).all()
 
 def get_match_audit_logs(db: Session, match_id: int):
     return db.query(AuditLog).options(joinedload(AuditLog.user)).filter(AuditLog.match_id == match_id).order_by(AuditLog.timestamp.desc()).all()
@@ -137,8 +137,17 @@ def delete_match_event(db: Session, event_id: int, user_id: int = None):
     return True
 
 # --- Consultas ---
+def get_match_days(db: Session):
+    return db.query(MatchDay).order_by(MatchDay.start_date).all()
+
 def get_clubs(db: Session):
     return db.query(Club).options(joinedload(Club.teams).joinedload(Team.category)).all()
+
+def get_venues(db: Session):
+    return db.query(Venue).all()
+
+def get_teams_by_category(db: Session, category_id: int):
+    return db.query(Team).filter(Team.category_id == category_id).all()
 
 def get_matches_by_category(db: Session, category_id: int, series: str = None):
     cat = db.query(Category).filter(Category.id == category_id).first()
@@ -149,8 +158,9 @@ def get_matches_by_category(db: Session, category_id: int, series: str = None):
 
 def get_leaderboard(db: Session, category_id: int, series: str = "HONOR"):
     cat = db.query(Category).filter(Category.id == category_id).first()
+    if not cat: return []
     query = db.query(Team).join(Club).filter(Team.category_id == category_id)
-    if cat and cat.parent_category == "Adultos":
+    if cat.parent_category == "Adultos":
         query = query.filter(Club.league_series == series)
     teams = query.all()
     leaderboard = []
@@ -179,17 +189,19 @@ def get_aggregated_adultos_leaderboard(db: Session, series: str = "HONOR"):
         stats = {"club_id": club.id, "club_name": club.name, "logo_url": club.logo_url, "pts": 0, "dg": 0, "pj": 0, "pg": 0, "pe": 0, "pp": 0, "gf": 0, "gc": 0}
         teams = db.query(Team).filter(Team.club_id == club.id, Team.category_id.in_(cat_ids)).all()
         for team in teams:
-            cat = next(c for c in adult_cats if c.id == team.category_id)
-            matches = db.query(Match).filter(or_(Match.is_played == True, Match.home_score > 0, Match.away_score > 0), or_(Match.home_team_id == team.id, Match.away_team_id == team.id)).all()
-            for m in matches:
-                stats["pj"] += 1
-                is_home = m.home_team_id == team.id
-                gf = m.home_score if is_home else m.away_score
-                gc = m.away_score if is_home else m.home_score
-                stats["gf"] += gf; stats["gc"] += gc
-                if gf > gc: stats["pg"] += 1; stats["pts"] += cat.points_win
-                elif gf == gc: stats["pe"] += 1; stats["pts"] += cat.points_draw
-                else: stats["pp"] += 1
+            try:
+                cat = next(c for c in adult_cats if c.id == team.category_id)
+                matches = db.query(Match).filter(or_(Match.is_played == True, Match.home_score > 0, Match.away_score > 0), or_(Match.home_team_id == team.id, Match.away_team_id == team.id)).all()
+                for m in matches:
+                    stats["pj"] += 1
+                    is_home = m.home_team_id == team.id
+                    gf = m.home_score if is_home else m.away_score
+                    gc = m.away_score if is_home else m.home_score
+                    stats["gf"] += gf; stats["gc"] += gc
+                    if gf > gc: stats["pg"] += 1; stats["pts"] += cat.points_win
+                    elif gf == gc: stats["pe"] += 1; stats["pts"] += cat.points_draw
+                    else: stats["pp"] += 1
+            except: continue
         stats["dg"] = stats["gf"] - stats["gc"]
         leaderboard.append(stats)
     return sorted(leaderboard, key=lambda x: (x["pts"], x["dg"]), reverse=True)
@@ -237,7 +249,7 @@ def bulk_create_players_from_excel(db: Session, team_id: int, df):
             if existing: existing.name = name; existing.team_id = team_id; updated += 1
             else: db.add(Player(team_id=team_id, name=name, dni=dni_clean)); created += 1
             db.commit()
-        except Exception: db.rollback(); errors.append(f"Error fila {index+2}")
+        except: db.rollback(); continue
     return created, updated, errors
 
 def get_top_scorers(db: Session, category_id: any, series: str = "HONOR"):
