@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 import bcrypt
 from datetime import datetime, timedelta
+import traceback
 import models, schemas, crud
 from database import SessionLocal, engine
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,31 +31,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def get_db():
-    db = SessionLocal()
+# --- Global Error Handler para Debug ---
+@app.middleware("http")
+async def catch_exceptions_middleware(request, call_next):
     try:
-        yield db
-    finally:
-        db.close()
+        return await call_next(request)
+    except Exception as exc:
+        print(f"ERROR DETECTADO EN {request.url.path}:")
+        traceback.print_exc()
+        return status.HTTP_500_INTERNAL_SERVER_ERROR
+
+def get_db():
+    db = SessionLocal(); 
+    try: yield db
+    finally: db.close()
 
 def get_password_hash(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 def verify_password(plain, hashed):
-    try:
-        return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
-    except:
-        return False
+    try: return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+    except: return False
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
-        if username is None: raise HTTPException(status_code=401)
+        if not username: raise HTTPException(status_code=401)
         user = crud.get_user_by_username(db, username=username)
-        if user is None: raise HTTPException(status_code=401)
+        if not user: raise HTTPException(status_code=401)
         return user
-    except JWTError: raise HTTPException(status_code=401)
+    except: raise HTTPException(status_code=401)
 
 @app.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -63,16 +70,14 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
     return {"access_token": jwt.encode({"sub": user.username, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM), "token_type": "bearer"}
 
-# --- Rutas Públicas ---
+# --- Rutas con response_model estricto ---
 @app.get("/clubs", response_model=List[schemas.Club])
 def read_clubs(db: Session = Depends(get_db)):
     return crud.get_clubs(db)
 
 @app.get("/clubs/{club_id}/details", response_model=schemas.ClubFullDetail)
 def read_club_details(club_id: int, db: Session = Depends(get_db)):
-    details = crud.get_club_full_details(db, club_id)
-    if not details: raise HTTPException(status_code=404)
-    return details
+    return crud.get_club_full_details(db, club_id)
 
 @app.get("/categories", response_model=List[schemas.Category])
 def read_categories(db: Session = Depends(get_db)):
@@ -93,7 +98,7 @@ def read_match_events(match_id: int, db: Session = Depends(get_db)):
 @app.get("/matches/{match_id}/audit")
 def read_match_audit(match_id: int, db: Session = Depends(get_db)):
     logs = crud.get_match_audit_logs(db, match_id)
-    return [{"id": l.id, "timestamp": l.timestamp, "user": {"username": l.user.username if l.user else "Sistema"}, "action": l.action, "details": l.details} for l in logs]
+    return [{"id": l.id, "timestamp": l.timestamp, "user": {"username": l.user.username if l.user else "System"}, "action": l.action, "details": l.details} for l in logs]
 
 @app.get("/top-scorers/{category_id}")
 def read_top_scorers(category_id: str, series: str = "HONOR", db: Session = Depends(get_db)):
@@ -111,11 +116,11 @@ def get_adultos_leaderboard(series: str = "HONOR", db: Session = Depends(get_db)
 def read_venues(db: Session = Depends(get_db)):
     return crud.get_venues(db)
 
-@app.get("/match-days")
+@app.get("/match-days", response_model=List[schemas.MatchDay])
 def read_match_days(db: Session = Depends(get_db)):
     return crud.get_match_days(db)
 
-# --- Rutas Privadas ---
+# --- Privadas ---
 @app.get("/users", response_model=List[schemas.User])
 def list_users(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.get_users(db)
@@ -146,7 +151,7 @@ def create_team(team: schemas.TeamCreate, db: Session = Depends(get_db), current
 @app.post("/players", response_model=schemas.Player)
 def create_player(player: schemas.PlayerCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     p = crud.create_player(db, player)
-    if not p: raise HTTPException(status_code=400, detail="RUT ya existe")
+    if not p: raise HTTPException(status_code=400, detail="Error al crear jugador")
     return p
 
 @app.post("/matches", response_model=schemas.Match)

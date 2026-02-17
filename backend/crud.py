@@ -23,27 +23,26 @@ def delete_user(db: Session, user_id: int):
 def create_user(db: Session, user: schemas.UserCreate, hashed_password: str):
     db_user = User(username=user.username, hashed_password=hashed_password)
     db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
+    db.commit(); db.refresh(db_user)
     return db_user
 
 # --- Players ---
 def create_player(db: Session, player: schemas.PlayerCreate):
-    dni_clean = player.dni.replace('.', '').replace('-', '').upper()
-    existing = db.query(Player).filter(Player.dni == dni_clean).first()
-    if existing: return None
-    db_player = Player(team_id=player.team_id, name=player.name, dni=dni_clean, number=player.number, birth_date=player.birth_date)
-    db.add(db_player)
-    db.commit()
-    db.refresh(db_player)
-    return db_player
+    try:
+        dni_clean = player.dni.replace('.', '').replace('-', '').upper()
+        existing = db.query(Player).filter(Player.dni == dni_clean).first()
+        if existing: return None
+        db_player = Player(team_id=player.team_id, name=player.name, dni=dni_clean, number=player.number, birth_date=player.birth_date)
+        db.add(db_player)
+        db.commit(); db.refresh(db_player)
+        return db_player
+    except: return None
 
 # --- Creación ---
 def create_match_day(db: Session, match_day: schemas.MatchDayCreate):
     db_match_day = MatchDay(**match_day.model_dump())
     db.add(db_match_day)
-    db.commit()
-    db.refresh(db_match_day)
+    db.commit(); db.refresh(db_match_day)
     return db_match_day
 
 def delete_match_day(db: Session, match_day_id: int):
@@ -57,8 +56,7 @@ def delete_match_day(db: Session, match_day_id: int):
 def create_club(db: Session, club: schemas.ClubCreate):
     db_club = Club(name=club.name, logo_url=club.logo_url, league_series=club.league_series)
     db.add(db_club)
-    db.commit()
-    db.refresh(db_club)
+    db.commit(); db.refresh(db_club)
     return db_club
 
 def update_club(db: Session, club_id: int, club_data: schemas.ClubCreate):
@@ -67,8 +65,7 @@ def update_club(db: Session, club_id: int, club_data: schemas.ClubCreate):
         db_club.name = club_data.name
         db_club.logo_url = club_data.logo_url
         db_club.league_series = club_data.league_series
-        db.commit()
-        db.refresh(db_club)
+        db.commit(); db.refresh(db_club)
     return db_club
 
 def create_team(db: Session, team: schemas.TeamCreate):
@@ -76,15 +73,13 @@ def create_team(db: Session, team: schemas.TeamCreate):
     if existing_team: return existing_team
     db_team = Team(**team.model_dump())
     db.add(db_team)
-    db.commit()
-    db.refresh(db_team)
+    db.commit(); db.refresh(db_team)
     return db_team
 
 def create_match(db: Session, match: schemas.MatchCreate):
     db_match = Match(**match.model_dump())
     db.add(db_match)
-    db.commit()
-    db.refresh(db_match)
+    db.commit(); db.refresh(db_match)
     return db_match
 
 def update_match_result(db: Session, match_id: int, result: schemas.MatchUpdateResult, user_id: int = None):
@@ -95,8 +90,7 @@ def update_match_result(db: Session, match_id: int, result: schemas.MatchUpdateR
         db_match.is_played = result.is_played
         status_msg = "FINALIZADO" if result.is_played else "REABIERTO"
         db.add(AuditLog(match_id=match_id, user_id=user_id, action="STATUS", details=f"{status_msg} ({result.home_score}-{result.away_score})"))
-        db.commit()
-        db.refresh(db_match)
+        db.commit(); db.refresh(db_match)
     return db_match
 
 # --- Auditoría ---
@@ -118,8 +112,7 @@ def create_match_event(db: Session, event: schemas.MatchEventCreate, user_id: in
             else: match.away_score += 1
     player_name = db.query(Player.name).filter(Player.id == event.player_id).scalar() or "Jugador"
     db.add(AuditLog(match_id=event.match_id, user_id=user_id, action="EVENT", details=f"{event.event_type} - {player_name} (Min {event.minute})"))
-    db.commit()
-    db.refresh(db_event)
+    db.commit(); db.refresh(db_event)
     return db_event
 
 def delete_match_event(db: Session, event_id: int, user_id: int = None):
@@ -145,9 +138,6 @@ def get_clubs(db: Session):
 
 def get_venues(db: Session):
     return db.query(Venue).all()
-
-def get_teams_by_category(db: Session, category_id: int):
-    return db.query(Team).filter(Team.category_id == category_id).all()
 
 def get_matches_by_category(db: Session, category_id: int, series: str = None):
     cat = db.query(Category).filter(Category.id == category_id).first()
@@ -217,19 +207,21 @@ def get_club_full_details(db: Session, club_id: int):
         all_matches = db.query(Match).filter(or_(Match.home_team_id == team.id, Match.away_team_id == team.id)).order_by(Match.match_date.desc()).all()
         past = []; upcoming = []
         for m in all_matches:
-            is_home = m.home_team_id == team.id
-            opponent = db.query(Team).options(joinedload(Team.club)).filter(Team.id == (m.away_team_id if is_home else m.home_team_id)).first()
-            match_data = {"id": m.id, "opponent_name": opponent.club.name if opponent else "Rival", "home_score": m.home_score, "away_score": m.away_score, "match_date": m.match_date}
-            if m.is_played or m.home_score > 0 or m.away_score > 0:
-                stats["pj"] += 1
-                gf = m.home_score if is_home else m.away_score
-                gc = m.away_score if is_home else m.home_score
-                stats["gf"] += gf; stats["gc"] += gc
-                if gf > gc: stats["pg"] += 1; stats["pts"] += team.category.points_win
-                elif gf == gc: stats["pe"] += 1; stats["pts"] += team.category.points_draw
-                else: stats["pp"] += 1
-                past.append(match_data)
-            else: upcoming.append(match_data)
+            try:
+                is_home = m.home_team_id == team.id
+                opponent = db.query(Team).options(joinedload(Team.club)).filter(Team.id == (m.away_team_id if is_home else m.home_team_id)).first()
+                match_data = {"id": m.id, "opponent_name": opponent.club.name if opponent else "Rival", "home_score": m.home_score, "away_score": m.away_score, "match_date": m.match_date}
+                if m.is_played or m.home_score > 0 or m.away_score > 0:
+                    stats["pj"] += 1
+                    gf = m.home_score if is_home else m.away_score
+                    gc = m.away_score if is_home else m.home_score
+                    stats["gf"] += gf; stats["gc"] += gc
+                    if gf > gc: stats["pg"] += 1; stats["pts"] += team.category.points_win
+                    elif gf == gc: stats["pe"] += 1; stats["pts"] += team.category.points_draw
+                    else: stats["pp"] += 1
+                    past.append(match_data)
+                else: upcoming.append(match_data)
+            except: continue
         players = [{"id": p.id, "name": p.name, "number": p.number, "goals": db.query(MatchEvent).filter(MatchEvent.player_id == p.id, MatchEvent.event_type == "GOAL").count(), "yellow_cards": db.query(MatchEvent).filter(MatchEvent.player_id == p.id, MatchEvent.event_type == "YELLOW_CARD").count(), "red_cards": db.query(MatchEvent).filter(MatchEvent.player_id == p.id, MatchEvent.event_type == "RED_CARD").count()} for p in team.players]
         categories_data.append({"category_name": team.category.name, "stats": stats, "players": players, "past_matches": past, "upcoming_matches": upcoming})
     return {"id": club.id, "name": club.name, "logo_url": club.logo_url, "league_series": club.league_series, "categories": categories_data}
@@ -254,13 +246,15 @@ def bulk_create_players_from_excel(db: Session, team_id: int, df):
 
 def get_top_scorers(db: Session, category_id: any, series: str = "HONOR"):
     query = db.query(Player.id, Player.name.label("player_name"), Club.name.label("club_name"), Club.logo_url.label("club_logo"), func.count(MatchEvent.id).label("total_goals")).join(MatchEvent, Player.id == MatchEvent.player_id).join(Team, Player.team_id == Team.id).join(Club, Team.club_id == Club.id).filter(MatchEvent.event_type == "GOAL")
-    if str(category_id) == "adultos":
+    if String(category_id) == "adultos":
         cat_ids = [c.id for c in db.query(Category).filter(Category.parent_category == "Adultos").all()]
         query = query.filter(Team.category_id.in_(cat_ids)).filter(Club.league_series == series)
     else:
-        cat = db.query(Category).filter(Category.id == int(category_id)).first()
-        query = query.filter(Team.category_id == int(category_id))
-        if cat and cat.parent_category == "Adultos": query = query.filter(Club.league_series == series)
+        try:
+            cat = db.query(Category).filter(Category.id == int(category_id)).first()
+            query = query.filter(Team.category_id == int(category_id))
+            if cat and cat.parent_category == "Adultos": query = query.filter(Club.league_series == series)
+        except: return []
     results = query.group_by(Player.id, Player.name, Club.name, Club.logo_url).order_by(desc("total_goals")).limit(20).all()
     return [{"player_id": r.id, "player_name": r.player_name, "club_name": r.club_name, "club_logo": r.club_logo, "goals": r.total_goals} for r in results]
 
