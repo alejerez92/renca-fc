@@ -247,7 +247,7 @@ def get_match_days(db: Session):
     return db.query(MatchDay).order_by(MatchDay.start_date).all()
 
 def get_clubs(db: Session):
-    return db.query(Club).all()
+    return db.query(Club).options(joinedload(Club.teams).joinedload(Team.category)).all()
 
 def get_venues(db: Session):
     return db.query(Venue).all()
