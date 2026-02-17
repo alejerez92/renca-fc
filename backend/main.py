@@ -159,6 +159,25 @@ def read_match_days(db: Session = Depends(get_db)):
 
 # --- Rutas Protegidas (Requieren Login) ---
 
+@app.get("/users", response_model=List[schemas.User])
+def list_users(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return crud.get_users(db)
+
+@app.post("/users", response_model=schemas.User)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.username != "admin_renca":
+        raise HTTPException(status_code=403, detail="Solo el Super Admin puede crear usuarios")
+    hashed_pwd = get_password_hash(user.password)
+    return crud.create_user(db, user, hashed_pwd)
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.username != "admin_renca":
+        raise HTTPException(status_code=403, detail="Solo el Super Admin puede eliminar usuarios")
+    if crud.delete_user(db, user_id):
+        return {"ok": True}
+    raise HTTPException(status_code=400, detail="No se pudo eliminar el usuario")
+
 @app.post("/clubs", response_model=schemas.Club)
 def create_club(club: schemas.ClubCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.create_club(db, club)
@@ -176,6 +195,13 @@ def delete_team(team_id: int, db: Session = Depends(get_db), current_user: model
     if crud.delete_team(db, team_id):
         return {"message": "Equipo eliminado correctamente"}
     raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+@app.post("/players", response_model=schemas.Player)
+def create_player(player: schemas.PlayerCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    db_player = crud.create_player(db, player)
+    if not db_player:
+        raise HTTPException(status_code=400, detail="El jugador con ese RUT ya existe")
+    return db_player
 
 @app.put("/players/{player_id}", response_model=schemas.Player)
 def update_player(player_id: int, player: schemas.PlayerUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
@@ -212,14 +238,31 @@ def delete_match(match_id: int, db: Session = Depends(get_db), current_user: mod
 
 @app.put("/matches/{match_id}/result", response_model=schemas.Match)
 def update_match_result(match_id: int, result: schemas.MatchUpdateResult, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    db_match = db.query(models.Match).filter(models.Match.id == match_id).first()
+    if not db_match:
+        raise HTTPException(status_code=404, detail="Partido no encontrado")
+    
+    # REGLA DE ORO: Si el partido ya estaba terminado, solo admin_renca puede reabrirlo o cambiarlo
+    if db_match.is_played and current_user.username != "admin_renca":
+        raise HTTPException(status_code=403, detail="Solo el Super Admin puede modificar partidos ya finalizados")
+        
     return crud.update_match_result(db, match_id, result, user_id=current_user.id)
 
 @app.post("/match-events", response_model=schemas.MatchEvent)
 def create_match_event(event: schemas.MatchEventCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    match = db.query(models.Match).filter(models.Match.id == event.match_id).first()
+    if match and match.is_played and current_user.username != "admin_renca":
+        raise HTTPException(status_code=403, detail="Solo el Super Admin puede agregar eventos a un partido finalizado")
     return crud.create_match_event(db, event, user_id=current_user.id)
 
 @app.delete("/match-events/{event_id}")
 def delete_match_event(event_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    event = db.query(models.MatchEvent).filter(models.MatchEvent.id == event_id).first()
+    if event:
+        match = db.query(models.Match).filter(models.Match.id == event.match_id).first()
+        if match and match.is_played and current_user.username != "admin_renca":
+            raise HTTPException(status_code=403, detail="Solo el Super Admin puede eliminar eventos de un partido finalizado")
+            
     if crud.delete_match_event(db, event_id, user_id=current_user.id):
         return {"message": "Evento eliminado"}
     raise HTTPException(status_code=404, detail="Evento no encontrado")
@@ -253,7 +296,8 @@ def read_audit_logs(limit: int = 100, db: Session = Depends(get_db), current_use
             "match_info": match_info,
             "action": log.action,
             "details": log.details,
-            "timestamp": log.timestamp
+            "timestamp": log.timestamp,
+            "user_name": log.user.username if log.user else "System"
         })
     return result
 
@@ -271,12 +315,8 @@ async def upload_players(
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents))
         
-        # Validar columnas mínimas (flexible con mayúsculas/minúsculas)
-        df.columns = [c.strip() for c in df.columns] # Limpiar espacios
+        df.columns = [c.strip() for c in df.columns]
         
-        if 'Nombre' not in df.columns or 'RUT' not in df.columns:
-             pass
-             
         created, updated, errors = crud.bulk_create_players_from_excel(db, team_id, df)
         
         return {

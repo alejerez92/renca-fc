@@ -8,12 +8,47 @@ import pandas as pd
 def get_user_by_username(db: Session, username: str):
     return db.query(User).filter(User.username == username).first()
 
+def get_users(db: Session):
+    return db.query(User).all()
+
+def delete_user(db: Session, user_id: int):
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if db_user:
+        if db_user.username == "admin_renca":
+            return False # No se puede borrar al super admin
+        db.delete(db_user)
+        db.commit()
+        return True
+    return False
+
 def create_user(db: Session, user: schemas.UserCreate, hashed_password: str):
     db_user = User(username=user.username, hashed_password=hashed_password)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
+
+# --- Players ---
+def create_player(db: Session, player: schemas.PlayerCreate):
+    # Limpiar RUT
+    dni_clean = player.dni.replace('.', '').replace('-', '').upper()
+    
+    # Verificar si ya existe
+    existing = db.query(Player).filter(Player.dni == dni_clean).first()
+    if existing:
+        return None
+        
+    db_player = Player(
+        team_id=player.team_id,
+        name=player.name,
+        dni=dni_clean,
+        number=player.number,
+        birth_date=player.birth_date
+    )
+    db.add(db_player)
+    db.commit()
+    db.refresh(db_player)
+    return db_player
 
 # --- Creación ---
 def create_match_day(db: Session, match_day: schemas.MatchDayCreate):
