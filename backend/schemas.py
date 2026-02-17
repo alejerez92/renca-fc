@@ -38,6 +38,9 @@ class TeamBase(BaseModel):
     club_id: int
     category_id: int
 
+class TeamCreate(TeamBase):
+    pass
+
 class Team(TeamBase):
     id: int
     category: Optional[Category] = None
@@ -139,7 +142,7 @@ class MatchEvent(MatchEventBase):
     player: Player
     class Config: from_attributes = True
 
-# 10. Auditoría (Simplificado)
+# 10. Auditoría
 class AuditLog(BaseModel):
     id: int
     action: str
