@@ -22,7 +22,6 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# Configuración de CORS Robusta
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -42,7 +41,10 @@ def get_password_hash(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 def verify_password(plain, hashed):
-    return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+    try:
+        return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+    except:
+        return False
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
@@ -59,16 +61,18 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     user = crud.get_user_by_username(db, username=form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
-    return {"access_token": jwt.encode({"sub": user.username}, SECRET_KEY, algorithm=ALGORITHM), "token_type": "bearer"}
+    return {"access_token": jwt.encode({"sub": user.username, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM), "token_type": "bearer"}
 
-# --- Públicas ---
+# --- Rutas Públicas ---
 @app.get("/clubs", response_model=List[schemas.Club])
 def read_clubs(db: Session = Depends(get_db)):
     return crud.get_clubs(db)
 
 @app.get("/clubs/{club_id}/details", response_model=schemas.ClubFullDetail)
 def read_club_details(club_id: int, db: Session = Depends(get_db)):
-    return crud.get_club_full_details(db, club_id)
+    details = crud.get_club_full_details(db, club_id)
+    if not details: raise HTTPException(status_code=404)
+    return details
 
 @app.get("/categories", response_model=List[schemas.Category])
 def read_categories(db: Session = Depends(get_db)):
@@ -89,7 +93,7 @@ def read_match_events(match_id: int, db: Session = Depends(get_db)):
 @app.get("/matches/{match_id}/audit")
 def read_match_audit(match_id: int, db: Session = Depends(get_db)):
     logs = crud.get_match_audit_logs(db, match_id)
-    return [{"id": l.id, "timestamp": l.timestamp, "user": {"username": l.user.username if l.user else "System"}, "action": l.action, "details": l.details} for l in logs]
+    return [{"id": l.id, "timestamp": l.timestamp, "user": {"username": l.user.username if l.user else "Sistema"}, "action": l.action, "details": l.details} for l in logs]
 
 @app.get("/top-scorers/{category_id}")
 def read_top_scorers(category_id: str, series: str = "HONOR", db: Session = Depends(get_db)):
@@ -111,7 +115,7 @@ def read_venues(db: Session = Depends(get_db)):
 def read_match_days(db: Session = Depends(get_db)):
     return crud.get_match_days(db)
 
-# --- Privadas ---
+# --- Rutas Privadas ---
 @app.get("/users", response_model=List[schemas.User])
 def list_users(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.get_users(db)
@@ -127,35 +131,35 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: model
     if crud.delete_user(db, user_id): return {"ok": True}
     raise HTTPException(status_code=400)
 
-@app.post("/clubs")
+@app.post("/clubs", response_model=schemas.Club)
 def create_club(club: schemas.ClubCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.create_club(db, club)
 
-@app.put("/clubs/{club_id}")
+@app.put("/clubs/{club_id}", response_model=schemas.Club)
 def update_club(club_id: int, club: schemas.ClubCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.update_club(db, club_id, club)
 
-@app.post("/teams")
+@app.post("/teams", response_model=schemas.Team)
 def create_team(team: schemas.TeamCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.create_team(db, team)
 
-@app.post("/players")
+@app.post("/players", response_model=schemas.Player)
 def create_player(player: schemas.PlayerCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     p = crud.create_player(db, player)
     if not p: raise HTTPException(status_code=400, detail="RUT ya existe")
     return p
 
-@app.post("/matches")
+@app.post("/matches", response_model=schemas.Match)
 def create_match(match: schemas.MatchCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.create_match(db, match)
 
-@app.put("/matches/{match_id}/result")
+@app.put("/matches/{match_id}/result", response_model=schemas.Match)
 def update_result(match_id: int, result: schemas.MatchUpdateResult, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     m = db.query(models.Match).filter(models.Match.id == match_id).first()
     if m and m.is_played and current_user.username != "admin_renca": raise HTTPException(status_code=403)
     return crud.update_match_result(db, match_id, result, user_id=current_user.id)
 
-@app.post("/match-events")
+@app.post("/match-events", response_model=schemas.MatchEvent)
 def create_event(event: schemas.MatchEventCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     m = db.query(models.Match).filter(models.Match.id == event.match_id).first()
     if m and m.is_played and current_user.username != "admin_renca": raise HTTPException(status_code=403)
@@ -170,7 +174,7 @@ def delete_event(event_id: int, db: Session = Depends(get_db), current_user: mod
     if crud.delete_match_event(db, event_id, user_id=current_user.id): return {"ok": True}
     raise HTTPException(status_code=404)
 
-@app.post("/match-days")
+@app.post("/match-days", response_model=schemas.MatchDay)
 def create_day(day: schemas.MatchDayCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.create_match_day(db, day)
 
@@ -182,7 +186,14 @@ def delete_day(id: int, db: Session = Depends(get_db), current_user: models.User
 @app.get("/audit-logs")
 def read_audit_logs(limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     logs = crud.get_audit_logs(db, limit)
-    return [{"id": l.id, "action": l.action, "details": l.details, "timestamp": l.timestamp, "user_name": l.user.username if l.user else "System", "match_info": f"{l.match.home_team.club.name} vs {l.match.away_team.club.name}" if l.match else "N/A"} for l in logs]
+    res = []
+    for l in logs:
+        info = "N/A"
+        try:
+            if l.match: info = f"{l.match.home_team.club.name} vs {l.match.away_team.club.name}"
+        except: pass
+        res.append({"id": l.id, "action": l.action, "details": l.details, "timestamp": l.timestamp, "user_name": l.user.username if l.user else "Sistema", "match_info": info})
+    return res
 
 @app.post("/players/upload")
 async def upload_players(team_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
