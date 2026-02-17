@@ -15,14 +15,14 @@ class Club(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
     logo_url = Column(String, nullable=True)
-    league_series = Column(String, default="HONOR") # HONOR o ASCENSO
+    league_series = Column(String, default="HONOR")
     teams = relationship("Team", back_populates="club")
 
 class Category(Base):
     __tablename__ = "categories"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True)
-    parent_category = Column(String, nullable=True) # "Adultos", "Infantiles", etc.
+    parent_category = Column(String, nullable=True)
     points_win = Column(Integer, default=3)
     points_draw = Column(Integer, default=1)
     points_loss = Column(Integer, default=0)
@@ -56,7 +56,7 @@ class Venue(Base):
 class MatchDay(Base):
     __tablename__ = "match_days"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String) # Ej: "Fecha 1"
+    name = Column(String)
     start_date = Column(Date)
     end_date = Column(Date)
 
@@ -77,13 +77,25 @@ class Match(Base):
     away_team = relationship("Team", foreign_keys=[away_team_id])
     venue = relationship("Venue")
     audit_logs = relationship("AuditLog", back_populates="match")
+    match_events = relationship("MatchEvent", back_populates="match")
+
+class MatchEvent(Base):
+    __tablename__ = "match_events"
+    id = Column(Integer, primary_key=True, index=True)
+    match_id = Column(Integer, ForeignKey("matches.id"))
+    player_id = Column(Integer, ForeignKey("players.id"))
+    event_type = Column(String) # GOAL, YELLOW_CARD, RED_CARD
+    minute = Column(Integer, default=0)
+    
+    match = relationship("Match", back_populates="match_events")
+    player = relationship("Player")
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(Integer, ForeignKey("matches.id"), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    action = Column(String) # Ej: "GOAL_ADDED", "STATUS_CHANGE"
+    action = Column(String)
     details = Column(Text)
     timestamp = Column(DateTime, default=datetime.utcnow)
     
