@@ -1,6 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, status
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 import bcrypt
 from datetime import datetime, timedelta
@@ -12,10 +12,9 @@ import pandas as pd
 import io
 import os
 
-# Configuración de Seguridad
 SECRET_KEY = os.getenv("SECRET_KEY", "renca-fc-secret-key-super-secure")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 1 semana
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -23,6 +22,7 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+# Configuración de CORS Robusta
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,28 +31,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Utilidades de Auth ---
-
-def verify_password(plain_password, hashed_password):
-    try:
-        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
-    except Exception:
-        return False
-
-def get_password_hash(password):
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
 def get_db():
     db = SessionLocal()
     try:
@@ -60,66 +38,41 @@ def get_db():
     finally:
         db.close()
 
+def get_password_hash(password):
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(plain, hashed):
+    return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="No se pudo validar las credenciales",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-        token_data = schemas.TokenData(username=username)
-    except JWTError:
-        raise credentials_exception
-    user = crud.get_user_by_username(db, username=token_data.username)
-    if user is None:
-        raise credentials_exception
-    return user
+        if username is None: raise HTTPException(status_code=401)
+        user = crud.get_user_by_username(db, username=username)
+        if user is None: raise HTTPException(status_code=401)
+        return user
+    except JWTError: raise HTTPException(status_code=401)
 
-# --- Rutas de Auth ---
-
-@app.post("/token", response_model=schemas.Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@app.post("/token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = crud.get_user_by_username(db, username=form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuario o contraseña incorrectos",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    return {"access_token": jwt.encode({"sub": user.username}, SECRET_KEY, algorithm=ALGORITHM), "token_type": "bearer"}
 
-# --- Rutas Públicas ---
-
+# --- Públicas ---
 @app.get("/clubs", response_model=List[schemas.Club])
 def read_clubs(db: Session = Depends(get_db)):
     return crud.get_clubs(db)
 
 @app.get("/clubs/{club_id}/details", response_model=schemas.ClubFullDetail)
 def read_club_details(club_id: int, db: Session = Depends(get_db)):
-    details = crud.get_club_full_details(db, club_id)
-    if not details:
-        raise HTTPException(status_code=404, detail="Club no encontrado")
-    return details
+    return crud.get_club_full_details(db, club_id)
 
 @app.get("/categories", response_model=List[schemas.Category])
 def read_categories(db: Session = Depends(get_db)):
     return db.query(models.Category).all()
-
-@app.get("/teams/{category_id}", response_model=List[schemas.Team])
-def read_teams(category_id: int, db: Session = Depends(get_db)):
-    return crud.get_teams_by_category(db, category_id)
-
-@app.get("/teams/{team_id}/players", response_model=List[schemas.Player])
-def read_team_players(team_id: int, db: Session = Depends(get_db)):
-    return crud.get_team_players(db, team_id)
 
 @app.get("/matches/{category_id}", response_model=List[schemas.Match])
 def read_matches(category_id: int, series: str = None, db: Session = Depends(get_db)):
@@ -135,7 +88,8 @@ def read_match_events(match_id: int, db: Session = Depends(get_db)):
 
 @app.get("/matches/{match_id}/audit")
 def read_match_audit(match_id: int, db: Session = Depends(get_db)):
-    return crud.get_match_audit_logs(db, match_id)
+    logs = crud.get_match_audit_logs(db, match_id)
+    return [{"id": l.id, "timestamp": l.timestamp, "user": {"username": l.user.username if l.user else "System"}, "action": l.action, "details": l.details} for l in logs]
 
 @app.get("/top-scorers/{category_id}")
 def read_top_scorers(category_id: str, series: str = "HONOR", db: Session = Depends(get_db)):
@@ -157,180 +111,85 @@ def read_venues(db: Session = Depends(get_db)):
 def read_match_days(db: Session = Depends(get_db)):
     return crud.get_match_days(db)
 
-# --- Rutas Protegidas (Requieren Login) ---
-
+# --- Privadas ---
 @app.get("/users", response_model=List[schemas.User])
 def list_users(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.get_users(db)
 
 @app.post("/users", response_model=schemas.User)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.username != "admin_renca":
-        raise HTTPException(status_code=403, detail="Solo el Super Admin puede crear usuarios")
-    hashed_pwd = get_password_hash(user.password)
-    return crud.create_user(db, user, hashed_pwd)
+    if current_user.username != "admin_renca": raise HTTPException(status_code=403)
+    return crud.create_user(db, user, get_password_hash(user.password))
 
 @app.delete("/users/{user_id}")
 def delete_user(user_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.username != "admin_renca":
-        raise HTTPException(status_code=403, detail="Solo el Super Admin puede eliminar usuarios")
-    if crud.delete_user(db, user_id):
-        return {"ok": True}
-    raise HTTPException(status_code=400, detail="No se pudo eliminar el usuario")
+    if current_user.username != "admin_renca": raise HTTPException(status_code=403)
+    if crud.delete_user(db, user_id): return {"ok": True}
+    raise HTTPException(status_code=400)
 
-@app.post("/clubs", response_model=schemas.Club)
+@app.post("/clubs")
 def create_club(club: schemas.ClubCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.create_club(db, club)
 
-@app.put("/clubs/{club_id}", response_model=schemas.Club)
+@app.put("/clubs/{club_id}")
 def update_club(club_id: int, club: schemas.ClubCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.update_club(db, club_id, club)
 
-@app.post("/teams", response_model=schemas.Team)
+@app.post("/teams")
 def create_team(team: schemas.TeamCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.create_team(db, team)
 
-@app.delete("/teams/{team_id}")
-def delete_team(team_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if crud.delete_team(db, team_id):
-        return {"message": "Equipo eliminado correctamente"}
-    raise HTTPException(status_code=404, detail="Equipo no encontrado")
-
-@app.post("/players", response_model=schemas.Player)
+@app.post("/players")
 def create_player(player: schemas.PlayerCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    db_player = crud.create_player(db, player)
-    if not db_player:
-        raise HTTPException(status_code=400, detail="El jugador con ese RUT ya existe")
-    return db_player
+    p = crud.create_player(db, player)
+    if not p: raise HTTPException(status_code=400, detail="RUT ya existe")
+    return p
 
-@app.put("/players/{player_id}", response_model=schemas.Player)
-def update_player(player_id: int, player: schemas.PlayerUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    db_player = crud.update_player(db, player_id, player)
-    if not db_player:
-        raise HTTPException(status_code=404, detail="Jugador no encontrado")
-    return db_player
-
-@app.delete("/players/{player_id}")
-def delete_player(player_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    player = db.query(models.Player).filter(models.Player.id == player_id).first()
-    if not player:
-        raise HTTPException(status_code=404, detail="Jugador no encontrado")
-    db.delete(player)
-    db.commit()
-    return {"message": "Jugador eliminado"}
-
-@app.post("/matches", response_model=schemas.Match)
+@app.post("/matches")
 def create_match(match: schemas.MatchCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    db_match = crud.create_match(db, match)
-    if db_match is None:
-        raise HTTPException(status_code=400, detail="Este partido ya está programado para esta fecha y categoría.")
-    return db_match
+    return crud.create_match(db, match)
 
-@app.put("/matches/{match_id}", response_model=schemas.Match)
-def update_match(match_id: int, match: schemas.MatchUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    return crud.update_match_details(db, match_id, match)
-
-@app.delete("/matches/{match_id}")
-def delete_match(match_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if crud.delete_match(db, match_id):
-        return {"message": "Partido eliminado"}
-    raise HTTPException(status_code=404, detail="Partido no encontrado")
-
-@app.put("/matches/{match_id}/result", response_model=schemas.Match)
-def update_match_result(match_id: int, result: schemas.MatchUpdateResult, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    db_match = db.query(models.Match).filter(models.Match.id == match_id).first()
-    if not db_match:
-        raise HTTPException(status_code=404, detail="Partido no encontrado")
-    
-    # REGLA DE ORO: Si el partido ya estaba terminado, solo admin_renca puede reabrirlo o cambiarlo
-    if db_match.is_played and current_user.username != "admin_renca":
-        raise HTTPException(status_code=403, detail="Solo el Super Admin puede modificar partidos ya finalizados")
-        
+@app.put("/matches/{match_id}/result")
+def update_result(match_id: int, result: schemas.MatchUpdateResult, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    m = db.query(models.Match).filter(models.Match.id == match_id).first()
+    if m and m.is_played and current_user.username != "admin_renca": raise HTTPException(status_code=403)
     return crud.update_match_result(db, match_id, result, user_id=current_user.id)
 
-@app.post("/match-events", response_model=schemas.MatchEvent)
-def create_match_event(event: schemas.MatchEventCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    match = db.query(models.Match).filter(models.Match.id == event.match_id).first()
-    if match and match.is_played and current_user.username != "admin_renca":
-        raise HTTPException(status_code=403, detail="Solo el Super Admin puede agregar eventos a un partido finalizado")
+@app.post("/match-events")
+def create_event(event: schemas.MatchEventCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    m = db.query(models.Match).filter(models.Match.id == event.match_id).first()
+    if m and m.is_played and current_user.username != "admin_renca": raise HTTPException(status_code=403)
     return crud.create_match_event(db, event, user_id=current_user.id)
 
 @app.delete("/match-events/{event_id}")
-def delete_match_event(event_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    event = db.query(models.MatchEvent).filter(models.MatchEvent.id == event_id).first()
-    if event:
-        match = db.query(models.Match).filter(models.Match.id == event.match_id).first()
-        if match and match.is_played and current_user.username != "admin_renca":
-            raise HTTPException(status_code=403, detail="Solo el Super Admin puede eliminar eventos de un partido finalizado")
-            
-    if crud.delete_match_event(db, event_id, user_id=current_user.id):
-        return {"message": "Evento eliminado"}
-    raise HTTPException(status_code=404, detail="Evento no encontrado")
+def delete_event(event_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    e = db.query(models.MatchEvent).filter(models.MatchEvent.id == event_id).first()
+    if e:
+        m = db.query(models.Match).filter(models.Match.id == e.match_id).first()
+        if m and m.is_played and current_user.username != "admin_renca": raise HTTPException(status_code=403)
+    if crud.delete_match_event(db, event_id, user_id=current_user.id): return {"ok": True}
+    raise HTTPException(status_code=404)
 
 @app.post("/match-days")
-def create_match_day(match_day: schemas.MatchDayCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    return crud.create_match_day(db, match_day)
+def create_day(day: schemas.MatchDayCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return crud.create_match_day(db, day)
 
-@app.delete("/match-days/{match_day_id}")
-def delete_match_day(match_day_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if crud.delete_match_day(db, match_day_id):
-        return {"message": "Fecha eliminada"}
-    raise HTTPException(status_code=404, detail="Fecha no encontrada")
+@app.delete("/match-days/{id}")
+def delete_day(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if crud.delete_match_day(db, id): return {"ok": True}
+    raise HTTPException(status_code=404)
 
 @app.get("/audit-logs")
 def read_audit_logs(limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     logs = crud.get_audit_logs(db, limit)
-    result = []
-    for log in logs:
-        match_info = "N/A"
-        if log.match:
-            m = db.query(models.Match).options(
-                joinedload(models.Match.home_team).joinedload(models.Team.club),
-                joinedload(models.Match.away_team).joinedload(models.Team.club)
-            ).filter(models.Match.id == log.match_id).first()
-            if m:
-                match_info = f"{m.home_team.club.name} vs {m.away_team.club.name}"
-        
-        result.append({
-            "id": log.id,
-            "match_info": match_info,
-            "action": log.action,
-            "details": log.details,
-            "timestamp": log.timestamp,
-            "user_name": log.user.username if log.user else "System"
-        })
-    return result
+    return [{"id": l.id, "action": l.action, "details": l.details, "timestamp": l.timestamp, "user_name": l.user.username if l.user else "System", "match_info": f"{l.match.home_team.club.name} vs {l.match.away_team.club.name}" if l.match else "N/A"} for l in logs]
 
 @app.post("/players/upload")
-async def upload_players(
-    team_id: int, 
-    file: UploadFile = File(...), 
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    if not file.filename.endswith(('.xlsx', '.xls')):
-        raise HTTPException(status_code=400, detail="El archivo debe ser un Excel (.xlsx, .xls)")
-    
-    try:
-        contents = await file.read()
-        df = pd.read_excel(io.BytesIO(contents))
-        
-        df.columns = [c.strip() for c in df.columns]
-        
-        created, updated, errors = crud.bulk_create_players_from_excel(db, team_id, df)
-        
-        return {
-            "message": "Proceso completado",
-            "created_count": created,
-            "updated_count": updated,
-            "errors": errors
-        }
-        
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500, detail=f"Error procesando el archivo: {str(e)}")
+async def upload_players(team_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    df = pd.read_excel(io.BytesIO(await file.read()))
+    created, updated, errors = crud.bulk_create_players_from_excel(db, team_id, df)
+    return {"created": created, "updated": updated, "errors": errors}
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-# Deploy Update: Mon Feb 16 23:58:56 -03 2026

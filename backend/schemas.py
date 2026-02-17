@@ -60,7 +60,7 @@ class ClubCreate(ClubBase):
 
 class Club(ClubBase):
     id: int
-    teams: List[Team] = [] # CRÍTICO: Permitir que viajen los equipos
+    teams: List[Team] = []
     class Config: from_attributes = True
 
 # --- Player ---
@@ -140,7 +140,7 @@ class Match(MatchBase):
 class MatchEventBase(BaseModel):
     match_id: int
     player_id: int
-    event_type: str # GOAL, YELLOW_CARD, RED_CARD
+    event_type: str
     minute: int
 
 class MatchEventCreate(MatchEventBase):
@@ -159,14 +159,14 @@ class AuditLog(BaseModel):
     timestamp: datetime
     user_id: Optional[int] = None
     user: Optional[User] = None
-    match: Optional[Match] = None
+    # Eliminamos la referencia circular pesada a Match para que el servidor no colapse
     class Config: from_attributes = True
 
 # --- Detalle Full Club ---
 class ClubCategoryDetail(BaseModel):
     category_name: str
     stats: dict
-    players: List[Player]
+    players: List[dict] # Usamos dict para flexibilidad total y evitar NameErrors
     past_matches: List[dict]
     upcoming_matches: List[dict]
 
