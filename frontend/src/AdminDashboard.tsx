@@ -51,6 +51,7 @@ function AdminDashboard() {
   const [indivName, setIndivName] = useState('')
   const [indivDni, setIndivDni] = useState('')
   const [indivNumber, setIndivNumber] = useState('')
+  const [indivBirthDate, setIndivBirthDate] = useState('')
 
   const [uploadTeamId, setUploadTeamId] = useState('')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
