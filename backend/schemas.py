@@ -2,7 +2,7 @@ from pydantic import BaseModel, ConfigDict
 from datetime import datetime, date
 from typing import List, Optional
 
-# --- Auth ---
+# 1. Base / Auth
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -10,7 +10,7 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     username: Optional[str] = None
 
-# --- Usuarios ---
+# 2. Usuarios
 class UserBase(BaseModel):
     username: Optional[str] = None
 
@@ -21,7 +21,15 @@ class User(UserBase):
     id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
-# --- Categorías ---
+# 3. Club Base (Para evitar referencias circulares)
+class ClubBase(BaseModel):
+    id: Optional[int] = None
+    name: Optional[str] = None
+    logo_url: Optional[str] = None
+    league_series: Optional[str] = "HONOR"
+    model_config = ConfigDict(from_attributes=True)
+
+# 4. Categorías
 class CategoryBase(BaseModel):
     name: Optional[str] = None
     parent_category: Optional[str] = None
@@ -33,7 +41,7 @@ class Category(CategoryBase):
     id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
-# --- Equipos ---
+# 5. Equipos (AHORA INCLUYE CLUB)
 class TeamBase(BaseModel):
     club_id: Optional[int] = None
     category_id: Optional[int] = None
@@ -44,23 +52,18 @@ class TeamCreate(TeamBase):
 class Team(TeamBase):
     id: Optional[int] = None
     category: Optional[Category] = None
+    club: Optional[ClubBase] = None # <-- CRUCIAL: Ahora el equipo sabe a qué club pertenece
     model_config = ConfigDict(from_attributes=True)
 
-# --- Clubes ---
-class ClubBase(BaseModel):
-    name: Optional[str] = None
-    logo_url: Optional[str] = None
-    league_series: Optional[str] = "HONOR"
+# 6. Clubes Full
+class Club(ClubBase):
+    teams: List[Team] = []
+    model_config = ConfigDict(from_attributes=True)
 
 class ClubCreate(ClubBase):
     pass
 
-class Club(ClubBase):
-    id: Optional[int] = None
-    teams: List[Team] = []
-    model_config = ConfigDict(from_attributes=True)
-
-# --- Jugadores ---
+# 7. Jugadores
 class PlayerBase(BaseModel):
     name: Optional[str] = None
     dni: Optional[str] = None
@@ -81,7 +84,7 @@ class Player(PlayerBase):
     id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
-# --- Recintos y Fechas ---
+# 8. Recintos y Fechas
 class Venue(BaseModel):
     id: Optional[int] = None
     name: Optional[str] = None
@@ -100,7 +103,7 @@ class MatchDay(MatchDayBase):
     id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
-# --- Partidos ---
+# 9. Partidos
 class MatchBase(BaseModel):
     category_id: Optional[int] = None
     match_day_id: Optional[int] = None
@@ -127,7 +130,7 @@ class Match(MatchBase):
     venue: Optional[Venue] = None
     model_config = ConfigDict(from_attributes=True)
 
-# --- Eventos ---
+# 10. Eventos
 class MatchEventBase(BaseModel):
     match_id: Optional[int] = None
     player_id: Optional[int] = None
@@ -142,7 +145,7 @@ class MatchEvent(MatchEventBase):
     player: Optional[Player] = None
     model_config = ConfigDict(from_attributes=True)
 
-# --- Auditoría ---
+# 11. Auditoría
 class AuditLog(BaseModel):
     id: Optional[int] = None
     action: Optional[str] = None
@@ -152,7 +155,7 @@ class AuditLog(BaseModel):
     user: Optional[User] = None
     model_config = ConfigDict(from_attributes=True)
 
-# --- Detalle Full Club ---
+# 12. Detalle Full Club
 class ClubCategoryDetail(BaseModel):
     category_name: Optional[str] = None
     stats: Optional[dict] = None

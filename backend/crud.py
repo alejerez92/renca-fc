@@ -141,7 +141,11 @@ def get_venues(db: Session):
 
 def get_matches_by_category(db: Session, category_id: int, series: str = None):
     cat = db.query(Category).filter(Category.id == category_id).first()
-    query = db.query(Match).options(joinedload(Match.home_team).joinedload(Team.club), joinedload(Match.away_team).joinedload(Team.club), joinedload(Match.venue)).filter(Match.category_id == category_id)
+    query = db.query(Match).options(
+        joinedload(Match.home_team).joinedload(Team.club), 
+        joinedload(Match.away_team).joinedload(Team.club), 
+        joinedload(Match.venue)
+    ).filter(Match.category_id == category_id)
     if series and cat and cat.parent_category == "Adultos":
         query = query.join(Team, Match.home_team_id == Team.id).join(Club).filter(Club.league_series == series)
     return query.order_by(Match.match_date).all()
