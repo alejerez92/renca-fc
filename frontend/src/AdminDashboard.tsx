@@ -1,26 +1,36 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
-import { PlusCircle, Users, Calendar, Trophy, Edit, X as CloseIcon, Trash2, Shield, PlayCircle, History, AlertTriangle, Upload, FileSpreadsheet, Lock, LogOut, User as UserIcon } from 'lucide-react'
+import { 
+  PlusCircle, Users, Calendar, Trophy, Edit, X as CloseIcon, 
+  Trash2, Shield, PlayCircle, AlertTriangle, 
+  Upload, FileSpreadsheet, Lock, LogOut, User as UserIcon,
+  UserPlus, ShieldCheck 
+} from 'lucide-react'
 import MatchControl from './MatchControl'
 
 const API_BASE_URL = 'https://renca-fc.onrender.com'
 
 function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'clubs' | 'matches' | 'roster' | 'players' | 'fixture' | 'audit'>('clubs')
+  const [activeTab, setActiveTab] = useState<'clubs' | 'matches' | 'roster' | 'players' | 'fixture' | 'users'>('clubs')
   
   // --- SEGURIDAD ---
   const token = localStorage.getItem('renca_token')
   const authHeader = { headers: { Authorization: `Bearer ${token}` } }
   
-  // Decodificar el nombre de usuario del Token
   const getCurrentUser = () => {
     try {
-      if (!token) return 'Invitado'
+      if (!token) return null
       const payload = JSON.parse(atob(token.split('.')[1]))
-      return payload.sub || 'Usuario'
-    } catch (e) { return 'Usuario' }
+      return payload.sub
+    } catch (e) { return null }
   }
   const currentUser = getCurrentUser()
+
+  // Redirigir si no hay sesión (No más invitados)
+  if (!currentUser) {
+    localStorage.removeItem('renca_token')
+    window.location.href = '/'
+  }
 
   // --- ESTADOS ---
   const [clubs, setClubs] = useState<any[]>([])
@@ -30,8 +40,12 @@ function AdminDashboard() {
   const [teams, setTeams] = useState<any[]>([])
   const [venues, setVenues] = useState<any[]>([])
   const [matchDays, setMatchDays] = useState<any[]>([])
-  const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [users, setUsers] = useState<any[]>([])
   const [error] = useState<string | null>(null)
+
+  // Estados para creación de usuarios
+  const [newUsername, setNewUsername] = useState('')
+  const [newUserPassword, setNewUserPassword] = useState('')
 
   const [uploadTeamId, setUploadTeamId] = useState('')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
@@ -57,6 +71,14 @@ function AdminDashboard() {
   const [newMatchDayEnd, setNewMatchDayEnd] = useState('')
 
   // --- PETICIONES API ---
+  const fetchUsers = async () => {
+    if (currentUser !== 'admin_renca') return
+    try {
+      const res = await axios.get(`${API_BASE_URL}/users`, authHeader)
+      setUsers(res.data)
+    } catch (e) { console.error(e) }
+  }
+
   const fetchClubs = async () => {
     try {
         const res = await axios.get(`${API_BASE_URL}/clubs`)
@@ -103,13 +125,6 @@ function AdminDashboard() {
     } catch (e) { console.error(e); }
   }
 
-  const fetchAuditLogs = async () => {
-      try {
-          const res = await axios.get(`${API_BASE_URL}/audit-logs`, authHeader)
-          setAuditLogs(res.data)
-      } catch (error) { console.error(error); }
-  }
-
   const fetchTeamRoster = useCallback(async (teamId: string) => {
       if(!teamId) { setCurrentRoster([]); return; }
       try {
@@ -121,6 +136,7 @@ function AdminDashboard() {
   // --- EFECTOS ---
   useEffect(() => {
     fetchClubs(); fetchCategories(); fetchVenues(); fetchMatchDays();
+    if (currentUser === 'admin_renca') fetchUsers();
   }, [])
 
   useEffect(() => {
@@ -132,26 +148,38 @@ function AdminDashboard() {
   }, [selectedCategory, activeTab, fetchTeams, fetchMatches])
 
   useEffect(() => {
-      if (activeTab === 'audit') fetchAuditLogs()
-  }, [activeTab])
-
-  useEffect(() => {
       if(uploadTeamId) fetchTeamRoster(uploadTeamId)
   }, [uploadTeamId, fetchTeamRoster])
 
   // --- HANDLERS ---
   const handleLogout = () => {
     localStorage.removeItem('renca_token')
-    window.location.href = '/' // Redirigir al inicio/login
+    window.location.href = '/'
+  }
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await axios.post(`${API_BASE_URL}/users`, { username: newUsername, password: newUserPassword }, authHeader)
+      setNewUsername(''); setNewUserPassword('');
+      fetchUsers()
+      alert('Usuario creado con éxito')
+    } catch (e) { alert('Error al crear usuario') }
+  }
+
+  const handleDeleteUser = async (id: number) => {
+    if (!confirm('¿Eliminar acceso a este usuario?')) return
+    try {
+      await axios.delete(`${API_BASE_URL}/users/${id}`, authHeader)
+      fetchUsers()
+    } catch (e) { alert('Error al eliminar') }
   }
 
   const handleUploadPlayers = async (e: React.FormEvent) => {
       e.preventDefault()
       if(!uploadTeamId || !uploadFile) return alert('Selecciona equipo y archivo')
-      
       const formData = new FormData()
       formData.append('file', uploadFile)
-      
       setUploadStatus('Subiendo...')
       try {
           const res = await axios.post(`${API_BASE_URL}/players/upload?team_id=${uploadTeamId}`, formData, {
@@ -161,9 +189,7 @@ function AdminDashboard() {
           setUploadStatus(`Éxito: ${created} nuevos, ${updated} actualizados.`)
           setUploadFile(null)
           fetchTeamRoster(uploadTeamId)
-      } catch (error: any) {
-          setUploadStatus(`Error al procesar archivo.`)
-      }
+      } catch (error: any) { setUploadStatus(`Error al procesar archivo.`) }
   }
 
   const handleUpdatePlayer = async (e: React.FormEvent) => {
@@ -197,7 +223,7 @@ function AdminDashboard() {
       await axios.post(`${API_BASE_URL}/clubs`, { name: newClubName, logo_url: newClubLogo, league_series: newClubSeries }, authHeader)
       setNewClubName(''); setNewClubLogo(''); fetchClubs();
       alert('Club creado')
-    } catch (error) { alert('Error de autenticación o de datos') }
+    } catch (error) { alert('Error de datos') }
   }
 
   const handleUpdateClub = async (e: React.FormEvent) => {
@@ -232,7 +258,7 @@ function AdminDashboard() {
       fetchMatches(selectedCategory)
       setHomeTeamId(''); setAwayTeamId('');
       alert('Partido programado')
-    } catch (error: any) { alert(error.response?.data?.detail || 'No autorizado') }
+    } catch (error: any) { alert(error.response?.data?.detail || 'Error al crear') }
   }
 
   const handleCreateMatchDay = async (e: React.FormEvent) => {
@@ -254,7 +280,6 @@ function AdminDashboard() {
     const visibleDays = showPastMatches ? matchDays : matchDays.filter(day => new Date(day.end_date) >= now)
     visibleDays.forEach(day => { grouped[day.name] = [] })
     grouped['Otros / Sin Fecha'] = []
-
     matches.forEach(match => {
       if (!match.match_date) { grouped['Otros / Sin Fecha'].push(match); return; }
       const mDate = new Date(match.match_date)
@@ -289,22 +314,59 @@ function AdminDashboard() {
               {id: 'fixture', label: 'Fechas', icon: Calendar},
               {id: 'players', label: 'Jugadores', icon: Users},
               {id: 'roster', label: 'Inscritos', icon: Trophy},
-              {id: 'audit', label: 'Auditoría', icon: History},
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`px-5 py-2.5 rounded-xl transition-all flex items-center gap-2 text-[11px] font-black uppercase tracking-widest whitespace-nowrap ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}>
                 <tab.icon className="w-4 h-4" /> {tab.label}
             </button>
           ))}
+          {currentUser === 'admin_renca' && (
+            <button onClick={() => setActiveTab('users')} className={`px-5 py-2.5 rounded-xl transition-all flex items-center gap-2 text-[11px] font-black uppercase tracking-widest whitespace-nowrap ${activeTab === 'users' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}>
+                <UserPlus className="w-4 h-4" /> Usuarios
+            </button>
+          )}
           <div className="w-px bg-gray-700 mx-2 my-2"></div>
-          <button onClick={handleLogout} className="px-5 py-2.5 rounded-xl text-red-400 hover:bg-red-500/10 flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-all"><LogOut className="w-4 h-4" /> Salir</button>
+          <button onClick={handleLogout} className="px-5 py-2.5 rounded-xl text-red-400 hover:bg-red-400/10 flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-all"><LogOut className="w-4 h-4" /> Salir</button>
         </div>
       </header>
 
       {error && <div className="bg-red-500/20 border border-red-500 text-red-200 p-4 rounded-xl mb-6 flex items-center gap-3"><AlertTriangle className="w-5 h-5" />{error}</div>}
 
+      {/* --- VISTA: USUARIOS (SOLO SUPERADMIN) --- */}
+      {activeTab === 'users' && currentUser === 'admin_renca' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in">
+           <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 h-fit shadow-2xl">
+              <h2 className="text-xl font-black mb-6 flex items-center gap-3 uppercase italic text-indigo-400"><UserPlus className="w-6 h-6" /> Crear Operador</h2>
+              <form onSubmit={handleCreateUser} className="space-y-5">
+                 <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1">Usuario</label><input type="text" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white" required /></div>
+                 <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1">Contraseña</label><input type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white" required /></div>
+                 <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg">Registrar Acceso</button>
+              </form>
+           </div>
+           <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 shadow-2xl">
+              <h3 className="text-[10px] font-black text-gray-500 mb-6 uppercase tracking-widest italic">Cuentas Activas</h3>
+              <div className="space-y-3">
+                 {users.map(u => (
+                    <div key={u.id} className="bg-gray-900/50 p-4 rounded-2xl flex items-center justify-between border border-gray-800">
+                       <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700"><ShieldCheck className={`w-5 h-5 ${u.username === 'admin_renca' ? 'text-indigo-500' : 'text-gray-500'}`} /></div>
+                          <div>
+                             <div className="font-black text-sm text-white uppercase">{u.username}</div>
+                             <div className="text-[9px] font-black text-gray-600 uppercase tracking-tighter">{u.username === 'admin_renca' ? 'Super Administrador' : 'Operador de Liga'}</div>
+                          </div>
+                       </div>
+                       {u.username !== 'admin_renca' && (
+                          <button onClick={() => handleDeleteUser(u.id)} className="text-red-500/20 hover:text-red-500 p-2 transition-all"><Trash2 className="w-5 h-5" /></button>
+                       )}
+                    </div>
+                 ))}
+              </div>
+           </div>
+        </div>
+      )}
+
       {/* --- VISTA: CLUBES --- */}
       {activeTab === 'clubs' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in">
           <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 h-fit shadow-2xl">
             <h2 className="text-xl font-black mb-6 flex items-center gap-2 uppercase tracking-tight italic"><PlusCircle className="text-green-500 w-6 h-6" /> Nuevo Club</h2>
             <form onSubmit={handleCreateClub} className="space-y-5">
@@ -364,15 +426,15 @@ function AdminDashboard() {
                 </form>
              </div>
              <div className="lg:col-span-2 space-y-8">
-               <button onClick={() => setShowPastMatches(!showPastMatches)} className="text-[10px] font-black px-4 py-2 rounded-xl border border-gray-700 text-gray-500 hover:text-white transition-all ml-auto block uppercase tracking-widest bg-gray-950/50 shadow-inner">{showPastMatches ? 'Ocultar pasados' : 'Ver fixture completo'}</button>
+               <button onClick={() => setShowPastMatches(!showPastMatches)} className="text-[10px] font-black px-4 py-2 rounded-xl border border-gray-700 text-gray-500 hover:text-white transition-all ml-auto block uppercase tracking-widest bg-gray-950/50 shadow-inner">{showPastMatches ? 'Ocultar pasados' : 'Ver todo'}</button>
                {Object.entries(getGroupedMatches()).map(([dayName, dayMatches]) => (
                  dayMatches.length > 0 && (
-                   <div key={dayName} className="animate-in slide-in-from-bottom-4"><h3 className="text-xs font-black text-indigo-400 uppercase tracking-[0.3em] mb-4 border-b border-gray-800 pb-2 italic flex items-center gap-2"><Calendar className="w-4 h-4 opacity-50" /> {dayName}</h3><div className="space-y-4">
+                   <div key={dayName} className="animate-in slide-in-from-bottom-4"><h3 className="text-xs font-black text-indigo-400 uppercase tracking-[0.3em] mb-4 border-b border-gray-800 pb-2 italic flex items-center gap-2"> {dayName}</h3><div className="space-y-4">
                        {dayMatches.map(match => (
                          <div key={match.id} className="bg-gray-800 border border-gray-700 p-6 rounded-[32px] shadow-2xl group hover:border-indigo-500/50 transition-all relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/5 blur-[60px]"></div>
                             <div className="flex justify-between text-[10px] text-gray-500 mb-4 border-b border-gray-700/50 pb-3 relative">
-                                <span className="font-bold flex items-center gap-2 uppercase tracking-widest"><Clock className="w-3 h-3 text-indigo-500" /> {new Date(match.match_date).toLocaleString()} • {match.venue?.name}</span>
+                                <span className="font-bold flex items-center gap-2 uppercase tracking-widest"> {new Date(match.match_date).toLocaleString()} • {match.venue?.name}</span>
                                 <div className="flex gap-6">
                                     <button onClick={() => setControllingMatch(match)} className="text-green-400 font-black flex items-center gap-1 hover:scale-110 transition-transform tracking-widest uppercase"><PlayCircle className="w-3.5 h-3.5" /> CONTROLAR</button>
                                     <button onClick={async () => { if(confirm('¿Eliminar partido?')) { await axios.delete(`${API_BASE_URL}/matches/${match.id}`, authHeader); fetchMatches(selectedCategory); } }} className="text-red-500/30 hover:text-red-500 transition-all p-1 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button>
@@ -395,27 +457,26 @@ function AdminDashboard() {
         </div>
       )}
 
-      {/* --- VISTA: FECHAS --- */}
+      {/* --- OTRAS VISTAS (FECHAS, JUGADORES, ROSTER) SE MANTIENEN IGUAL --- */}
       {activeTab === 'fixture' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
           <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 h-fit shadow-2xl">
             <h2 className="text-xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter italic text-white"><Calendar className="text-blue-400 w-6 h-6" /> Nueva Jornada</h2>
             <form onSubmit={handleCreateMatchDay} className="space-y-5">
-              <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1 mb-1 block">Nombre (ej: Fecha 1)</label><input type="text" value={newMatchDayName} onChange={(e) => setNewMatchDayName(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black uppercase text-white outline-none focus:border-indigo-500 transition-all" required /></div>
+              <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1 mb-1 block">Nombre</label><input type="text" value={newMatchDayName} onChange={(e) => setNewMatchDayName(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black uppercase text-white outline-none focus:border-indigo-500 transition-all" required /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1 mb-1 block">Inicio Rango</label><input type="date" value={newMatchDayStart} onChange={(e) => setNewMatchDayStart(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white outline-none" required /></div>
-                <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1 mb-1 block">Término Rango</label><input type="date" value={newMatchDayEnd} onChange={(e) => setNewMatchDayEnd(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white outline-none" required /></div>
+                <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1 mb-1 block">Inicio</label><input type="date" value={newMatchDayStart} onChange={(e) => setNewMatchDayStart(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white outline-none" required /></div>
+                <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1 mb-1 block">Fin</label><input type="date" value={newMatchDayEnd} onChange={(e) => setNewMatchDayEnd(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white outline-none" required /></div>
               </div>
-              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase text-xs tracking-[0.3em] shadow-lg transition-all active:scale-95 mt-2">Registrar Jornada</button>
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg">Crear Jornada</button>
             </form>
           </div>
           <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 shadow-2xl">
-             <h3 className="text-[10px] font-black text-gray-500 mb-6 border-b border-gray-700 pb-3 uppercase tracking-[0.2em] italic">Jornadas Vigentes</h3>
-             <ul className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+             <ul className="space-y-3">
                {matchDays.map(day => (
-                 <li key={day.id} className="bg-gray-900/50 p-5 rounded-2xl flex items-center justify-between border border-gray-800 group hover:border-gray-600 transition-all shadow-inner">
+                 <li key={day.id} className="bg-gray-900/50 p-5 rounded-2xl flex items-center justify-between border border-gray-800 group hover:border-gray-600 transition-all">
                    <div><span className="font-black block text-lg italic uppercase tracking-tighter text-white">{day.name}</span><span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{new Date(day.start_date).toLocaleDateString()} — {new Date(day.end_date).toLocaleDateString()}</span></div>
-                   <button onClick={() => handleDeleteMatchDay(day.id)} className="text-red-500/20 group-hover:text-red-500 p-3 transition-all hover:bg-red-500/10 rounded-xl"><Trash2 className="w-5 h-5" /></button>
+                   <button onClick={() => handleDeleteMatchDay(day.id)} className="text-red-500/20 group-hover:text-red-500 p-3"><Trash2 className="w-5 h-5" /></button>
                  </li>
                ))}
              </ul>
@@ -423,86 +484,60 @@ function AdminDashboard() {
         </div>
       )}
 
-      {/* --- VISTA: JUGADORES --- */}
       {activeTab === 'players' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 animate-in fade-in duration-500">
-              <div className="bg-gray-800 p-8 rounded-[40px] border border-gray-700 h-fit shadow-2xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 blur-[60px]"></div>
-                  <h2 className="text-xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter italic text-white relative"><Upload className="text-indigo-500 w-6 h-6" /> Carga Masiva (Excel)</h2>
-                  <div className="bg-blue-900/10 border border-blue-800/30 p-5 rounded-2xl mb-8 text-[10px] text-blue-300 font-black uppercase tracking-[0.2em] relative">
-                      <p className="mb-3 flex items-center gap-2 text-blue-400 font-black"><FileSpreadsheet className="w-4 h-4" /> REGLAS DEL ARCHIVO:</p>
-                      <ul className="list-disc pl-5 space-y-2">
-                          <li>Nombre y RUT son columnas obligatorias</li>
-                          <li>Número y Fecha de Nacimiento son opcionales</li>
-                          <li>Formato aceptado: .xlsx o .xls solamente</li>
-                      </ul>
-                  </div>
-                  
-                  <form onSubmit={handleUploadPlayers} className="space-y-6 relative">
-                      <div><label className="block text-[10px] text-gray-500 mb-2 uppercase font-black tracking-widest ml-1">Categoría</label><select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black uppercase text-white outline-none focus:border-indigo-500 transition-all">{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-                      <div><label className="block text-[10px] text-gray-500 mb-2 uppercase font-black tracking-widest ml-1">Seleccionar Equipo</label><select value={uploadTeamId} onChange={(e) => setUploadTeamId(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black uppercase text-white outline-none focus:border-indigo-500 transition-all" required><option value="">Seleccionar...</option>{teams.map(t => <option key={t.id} value={t.id}>{t.club.name}</option>)}</select></div>
-                      <div className="bg-gray-950 p-4 rounded-2xl border border-gray-800 shadow-inner group hover:border-indigo-500/50 transition-all">
-                          <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-2 block">Archivo de Planilla</label>
-                          <input type="file" accept=".xlsx, .xls" onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)} className="w-full text-xs text-gray-400 file:bg-indigo-600 file:border-0 file:rounded-lg file:text-white file:font-black file:uppercase file:text-[9px] file:px-4 file:py-2 file:mr-4 file:shadow-lg cursor-pointer" required />
-                      </div>
-                      <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase text-xs tracking-[0.3em] shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95 text-white"><Upload className="w-5 h-5" /> Procesar y Cargar</button>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 animate-in fade-in">
+              <div className="bg-gray-800 p-8 rounded-[40px] border border-gray-700 h-fit shadow-2xl relative">
+                  <h2 className="text-xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter italic text-white"><Upload className="text-indigo-500 w-6 h-6" /> Carga Masiva</h2>
+                  <form onSubmit={handleUploadPlayers} className="space-y-6">
+                      <div><label className="block text-[10px] text-gray-500 mb-2 uppercase font-black tracking-widest">Categoría</label><select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black text-white">{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                      <div><label className="block text-[10px] text-gray-500 mb-2 uppercase font-black tracking-widest">Equipo</label><select value={uploadTeamId} onChange={(e) => setUploadTeamId(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black text-white" required><option value="">Seleccionar...</option>{teams.map(t => <option key={t.id} value={t.id}>{t.club.name}</option>)}</select></div>
+                      <input type="file" accept=".xlsx, .xls" onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)} className="w-full text-xs text-gray-400 file:bg-indigo-600 file:border-0 file:rounded file:text-white file:font-black file:uppercase file:text-[9px] file:px-3 file:py-1 file:mr-4 cursor-pointer" required />
+                      <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest">Procesar Plantilla</button>
                   </form>
-                  {uploadStatus && <div className={`mt-6 p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center border shadow-xl ${uploadStatus.includes('Error') ? 'bg-red-900/20 text-red-400 border-red-800/30' : 'bg-green-900/20 text-green-400 border-green-800/30'}`}>{uploadStatus}</div>}
+                  {uploadStatus && <div className="mt-4 p-3 rounded-lg text-center text-xs font-black uppercase tracking-widest border border-gray-700 bg-gray-900">{uploadStatus}</div>}
               </div>
               <div className="bg-gray-800 p-8 rounded-[40px] border border-gray-700 flex flex-col h-[700px] shadow-2xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/5 blur-[60px]"></div>
-                  <div className="flex justify-between items-center mb-8 relative border-b border-gray-700 pb-4"><h3 className="text-xl font-black italic uppercase tracking-tighter text-indigo-400">Jugadores Registrados</h3><span className="text-[10px] font-black bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700 text-gray-500 shadow-inner">{currentRoster.length} FICHAS</span></div>
-                  {!uploadTeamId ? <div className="text-gray-700 text-center py-20 italic flex-1 flex flex-col items-center justify-center gap-6 relative opacity-30"><Users className="w-20 h-20" /><p className="text-sm font-black uppercase tracking-[0.3em]">Elige un club para auditar plantel</p></div> : 
-                      <div className="flex-1 overflow-y-auto pr-3 custom-scrollbar relative"><table className="w-full text-left text-sm"><thead className="bg-gray-950 text-gray-500 text-[10px] uppercase font-black sticky top-0 z-10 italic tracking-widest border-b border-gray-800"><tr><th className="px-4 py-4">#</th><th className="px-4 py-4">Ficha Personal</th><th className="px-4 py-4">RUT</th><th className="px-4 py-4 text-right">Gestión</th></tr></thead><tbody className="divide-y divide-gray-800">
-                          {currentRoster.map(p => {
-                              const birthYear = p.birth_date ? new Date(p.birth_date).getFullYear() : null;
-                              const age = birthYear ? new Date().getFullYear() - birthYear : null;
-                              return (
-                              <tr key={p.id} className="hover:bg-gray-850 transition-all group shadow-sm"><td className="px-4 py-4 text-indigo-500 font-black text-sm italic">{p.number || '-'}</td><td className="px-4 py-4"><div className="font-black uppercase text-gray-200 text-xs mb-0.5">{p.name}</div>{age && <div className="text-[9px] font-black text-gray-600 uppercase tracking-widest bg-gray-950 px-1.5 py-0.5 rounded inline-block">{age} AÑOS</div>}</td><td className="px-4 py-4 text-gray-500 text-[10px] font-mono italic tracking-tighter">{p.dni}</td><td className="px-4 py-4 text-right flex gap-4 justify-end items-center"><button onClick={() => setEditingPlayer(p)} className="text-gray-600 hover:text-white transition-colors"><Edit className="w-4 h-4" /></button><button onClick={() => handleDeletePlayer(p.id)} className="text-red-500/10 group-hover:text-red-500 transition-all p-1.5 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></td></tr>
-                          )})}
+                  <div className="flex justify-between items-center mb-8 relative border-b border-gray-700 pb-4"><h3 className="text-xl font-black italic uppercase tracking-tighter text-indigo-400">Jugadores Registrados</h3><span className="text-[10px] font-black bg-gray-900 px-3 py-1.5 rounded-full text-gray-500">{currentRoster.length} FICHAS</span></div>
+                  {!uploadTeamId ? <div className="text-gray-700 text-center py-20 italic flex-1 flex flex-col items-center justify-center opacity-30"><Users className="w-20 h-20 mb-4" /><p className="text-sm font-black uppercase tracking-widest">Elige un club</p></div> : 
+                      <div className="flex-1 overflow-y-auto custom-scrollbar"><table className="w-full text-left text-sm"><thead className="bg-gray-950 text-gray-500 uppercase font-black text-[10px] sticky top-0 z-10"><tr><th className="px-4 py-4">#</th><th className="px-4 py-4">Nombre</th><th className="px-4 py-4">RUT</th><th className="px-4 py-4 text-right">Gestión</th></tr></thead><tbody className="divide-y divide-gray-800">
+                          {currentRoster.map(p => (
+                              <tr key={p.id} className="hover:bg-gray-850 group transition-all"><td className="px-4 py-4 text-indigo-500 font-black">{p.number || '-'}</td><td className="px-4 py-4 font-black uppercase text-gray-200 text-xs">{p.name}</td><td className="px-4 py-4 text-gray-500 text-[10px] font-mono italic">{p.dni}</td><td className="px-4 py-4 text-right flex gap-4 justify-end"><button onClick={() => setEditingPlayer(p)} className="text-gray-600 hover:text-white"><Edit className="w-4 h-4" /></button><button onClick={() => handleDeletePlayer(p.id)} className="text-red-500/20 group-hover:text-red-500"><Trash2 className="w-4 h-4" /></button></td></tr>
+                          ))}
                       </tbody></table></div>
                   }
               </div>
           </div>
       )}
 
-      {/* --- MODAL EDITAR JUGADOR --- */}
+      {/* --- MODALES --- */}
       {editingPlayer && (
-        <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-            <div className="bg-gray-800 p-10 rounded-[48px] border border-gray-700 w-full max-w-lg shadow-[0_0_100px_rgba(79,70,229,0.2)] animate-in zoom-in-95 duration-200">
-                <div className="flex justify-between items-center mb-10 border-b border-gray-700 pb-6">
-                    <h3 className="text-2xl font-black italic tracking-tighter flex items-center gap-3 text-white uppercase leading-none"><Lock className="w-6 h-6 text-indigo-500" /> Corregir Ficha</h3>
-                    <button onClick={() => setEditingPlayer(null)} className="p-3 hover:bg-white/5 rounded-full text-gray-500 hover:text-white transition-all"><CloseIcon className="w-8 h-8" /></button>
-                </div>
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in">
+            <div className="bg-gray-800 p-10 rounded-[48px] border border-gray-700 w-full max-w-lg shadow-2xl">
+                <div className="flex justify-between items-center mb-10 border-b border-gray-700 pb-6"><h3 className="text-2xl font-black italic tracking-tighter text-white uppercase"><Lock className="w-6 h-6 text-indigo-500 inline mr-2" /> Corregir Ficha</h3><button onClick={() => setEditingPlayer(null)} className="p-2 hover:bg-white/5 rounded-full"><CloseIcon className="w-8 h-8 text-gray-500" /></button></div>
                 <form onSubmit={handleUpdatePlayer} className="space-y-6">
-                    <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-2 block ml-1">Nombre Completo</label><input type="text" value={editingPlayer.name} onChange={(e) => setEditingPlayer({...editingPlayer, name: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black uppercase text-white focus:border-indigo-500 transition-all outline-none shadow-inner" required /></div>
+                    <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Nombre Completo</label><input type="text" value={editingPlayer.name} onChange={(e) => setEditingPlayer({...editingPlayer, name: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black uppercase text-white outline-none focus:border-indigo-500 transition-all" required /></div>
                     <div className="grid grid-cols-2 gap-6">
-                        <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-2 block ml-1">RUT / DNI</label><input type="text" value={editingPlayer.dni || ''} onChange={(e) => setEditingPlayer({...editingPlayer, dni: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black uppercase text-white outline-none" required /></div>
-                        <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-2 block ml-1">Dorsal</label><input type="number" value={editingPlayer.number || ''} onChange={(e) => setEditingPlayer({...editingPlayer, number: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black text-white outline-none shadow-inner" /></div>
+                        <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">RUT / DNI</label><input type="text" value={editingPlayer.dni || ''} onChange={(e) => setEditingPlayer({...editingPlayer, dni: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black uppercase text-white outline-none" required /></div>
+                        <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Dorsal</label><input type="number" value={editingPlayer.number || ''} onChange={(e) => setEditingPlayer({...editingPlayer, number: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black text-white outline-none" /></div>
                     </div>
-                    <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-2 block ml-1">Fecha de Nacimiento</label><input type="date" value={editingPlayer.birth_date ? editingPlayer.birth_date.split('T')[0] : ''} onChange={(e) => setEditingPlayer({...editingPlayer, birth_date: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-white outline-none" /></div>
-                    <div className="pt-8 flex flex-col gap-4">
-                        <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-[24px] font-black uppercase text-xs tracking-[0.4em] shadow-2xl flex items-center justify-center gap-3 transition-all active:scale-95 text-white"><Save className="w-5 h-5" /> Confirmar Cambios</button>
-                        <button type="button" onClick={() => setEditingPlayer(null)} className="w-full py-4 text-gray-600 hover:text-white text-[10px] font-black uppercase tracking-[0.3em] transition-colors italic">Descartar Cambios</button>
-                    </div>
+                    <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-[24px] font-black uppercase text-xs tracking-[0.4em] shadow-2xl transition-all active:scale-95 text-white">Confirmar Cambios</button>
                 </form>
             </div>
         </div>
       )}
 
-      {/* --- VISTA: AUDITORÍA --- */}
-      {activeTab === 'audit' && (
-          <div className="bg-gray-800 rounded-[40px] border border-gray-700 overflow-hidden shadow-2xl animate-in fade-in duration-500">
-              <div className="p-8 border-b border-gray-700 flex justify-between items-center bg-gray-800/50"><h2 className="text-xl font-black italic tracking-tighter flex items-center gap-3 uppercase text-white"><History className="text-indigo-400 w-6 h-6" /> Bitácora del Sistema</h2><button onClick={fetchAuditLogs} className="text-[10px] font-black bg-indigo-600 hover:bg-indigo-500 px-6 py-2.5 rounded-xl shadow-lg uppercase tracking-widest transition-all active:scale-95 text-white">Actualizar Logs</button></div>
-              <div className="overflow-x-auto custom-scrollbar pr-2"><table className="w-full text-left text-sm border-collapse"><thead className="bg-gray-950 text-gray-500 uppercase font-black text-[10px] italic tracking-widest"><tr><th className="px-8 py-5">Sello de Tiempo</th><th className="px-8 py-5">Contexto del Partido</th><th className="px-8 py-5">Acción</th><th className="px-8 py-5">Detalle de Operación</th><th className="px-8 py-5">Operador</th></tr></thead><tbody className="divide-y divide-gray-800">
-                  {auditLogs.map(log => (<tr key={log.id} className="hover:bg-gray-850 transition-colors group"><td className="px-8 py-5 text-[10px] font-mono text-gray-600 uppercase group-hover:text-gray-400">{new Date(log.timestamp).toLocaleString()}</td><td className="px-8 py-5 font-black text-gray-300 text-xs uppercase italic tracking-tighter">{log.match_info}</td><td className="px-8 py-5"><span className="px-3 py-1 rounded-full text-[9px] font-black bg-indigo-950 text-indigo-400 border border-indigo-900 uppercase tracking-tighter shadow-inner">{log.action}</span></td><td className="px-8 py-5 text-xs text-gray-500 group-hover:text-gray-300 font-bold uppercase tracking-tight italic transition-colors leading-relaxed">{log.details}</td><td className="px-8 py-5 text-xs font-black text-indigo-500 uppercase italic bg-indigo-500/5">{log.user_name}</td></tr>))}
-              </tbody></table></div>
-          </div>
+      {editingClub && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"><div className="bg-gray-800 p-10 rounded-[48px] border border-gray-700 w-full max-w-md shadow-2xl"><div className="flex justify-between items-center mb-8 border-b border-gray-700 pb-6"><h3 className="text-2xl font-black italic tracking-tighter uppercase text-white">Editar Club</h3><button onClick={() => setEditingClub(null)} className="p-2 hover:bg-white/5 rounded-full"><CloseIcon className="w-8 h-8 text-gray-500" /></button></div><form onSubmit={handleUpdateClub} className="space-y-6"><div><label className="text-[10px] font-black text-gray-500 uppercase mb-2 block">Nombre Oficial</label><input type="text" value={editingClub.name} onChange={(e) => setEditingClub({...editingClub, name: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black uppercase text-white outline-none" /></div><button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-[24px] font-black uppercase text-xs tracking-widest shadow-2xl mt-4">Actualizar Datos</button></form></div></div>
       )}
 
-      {/* --- OTROS MODALES --- */}
-      {editingClub && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"><div className="bg-gray-800 p-10 rounded-[48px] border border-gray-700 w-full max-w-md shadow-2xl animate-in zoom-in-95"><div className="flex justify-between items-center mb-8 border-b border-gray-700 pb-6"><h3 className="text-2xl font-black italic tracking-tighter uppercase text-white">Editar Club</h3><button onClick={() => setEditingClub(null)} className="p-3 hover:bg-white/5 rounded-full"><CloseIcon className="w-8 h-8 text-gray-500" /></button></div><form onSubmit={handleUpdateClub} className="space-y-6"><div><label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-2 block ml-1">Nombre Oficial</label><input type="text" value={editingClub.name} onChange={(e) => setEditingClub({...editingClub, name: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black uppercase text-white outline-none" /></div><div><label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-2 block ml-1">Serie Competencia</label><select value={editingClub.league_series} onChange={(e) => setEditingClub({...editingClub, league_series: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black uppercase text-white outline-none"><option value="HONOR">Honor</option><option value="ASCENSO">Ascenso</option></select></div><div><label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-2 block ml-1">Logo URL (Icono)</label><input type="text" value={editingClub.logo_url || ''} onChange={(e) => setEditingClub({...editingClub, logo_url: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-sm font-bold text-white outline-none" /></div><button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-[24px] font-black uppercase text-xs tracking-[0.4em] shadow-2xl transition-all active:scale-95 mt-4 text-white">Actualizar Ficha</button></form></div></div>
+      {activeTab === 'roster' && (
+         <div className="bg-gray-800 p-8 rounded-[40px] border border-gray-700 shadow-2xl animate-in fade-in">
+             <div className="flex items-center gap-6 mb-10"><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Equipos inscritos en:</label><select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black text-white outline-none">{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div><h3 className="text-yellow-500 font-black mb-6 border-b border-gray-700 pb-3 uppercase tracking-widest italic">Serie de Honor</h3><div className="grid gap-3">{teams.filter(t => t.club.league_series === 'HONOR').map(t => (<div key={t.id} className="flex items-center gap-4 bg-gray-900/50 p-4 rounded-2xl border border-gray-800 shadow-inner group hover:border-yellow-500/30 transition-all"><img src={t.club.logo_url} className="w-10 h-10 rounded-xl object-contain bg-white p-1 shadow-lg" /><span className="font-black uppercase tracking-tight text-white text-sm">{t.club.name}</span></div>))}</div></div>
+                <div><h3 className="text-indigo-400 font-black mb-6 border-b border-gray-700 pb-3 uppercase tracking-widest italic">Serie de Ascenso</h3><div className="grid gap-3">{teams.filter(t => t.club.league_series === 'ASCENSO').map(t => (<div key={t.id} className="flex items-center gap-4 bg-gray-900/50 p-4 rounded-2xl border border-gray-800 shadow-inner group hover:border-indigo-500/30 transition-all"><img src={t.club.logo_url} className="w-10 h-10 rounded-xl object-contain bg-white p-1 shadow-lg" /><span className="font-black uppercase tracking-tight text-white text-sm">{t.club.name}</span></div>))}</div></div>
+             </div>
+         </div>
       )}
 
       {controllingMatch && (
