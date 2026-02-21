@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { 
   PlusCircle, Users, Calendar, Trophy, Edit, X as CloseIcon, 
-  Trash2, Shield, PlayCircle, AlertTriangle, 
-  Upload, FileSpreadsheet, Lock, LogOut, User as UserIcon,
-  UserPlus, ShieldCheck 
+  Trash2, Shield, PlayCircle, History, AlertTriangle, 
+  Upload, Lock, LogOut, User as UserIcon,
+  UserPlus, ShieldCheck, Clock, Save 
 } from 'lucide-react'
 import MatchControl from './MatchControl'
 
@@ -325,7 +325,7 @@ function AdminDashboard() {
             </button>
           )}
           <div className="w-px bg-gray-700 mx-2 my-2"></div>
-          <button onClick={handleLogout} className="px-5 py-2.5 rounded-xl text-red-400 hover:bg-red-400/10 flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-all"><LogOut className="w-4 h-4" /> Salir</button>
+          <button onClick={handleLogout} className="px-5 py-2.5 rounded-xl text-red-400 hover:bg-red-500/10 flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-all"><LogOut className="w-4 h-4" /> Salir</button>
         </div>
       </header>
 
@@ -366,7 +366,7 @@ function AdminDashboard() {
 
       {/* --- VISTA: CLUBES --- */}
       {activeTab === 'clubs' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
           <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 h-fit shadow-2xl">
             <h2 className="text-xl font-black mb-6 flex items-center gap-2 uppercase tracking-tight italic"><PlusCircle className="text-green-500 w-6 h-6" /> Nuevo Club</h2>
             <form onSubmit={handleCreateClub} className="space-y-5">
@@ -434,7 +434,7 @@ function AdminDashboard() {
                          <div key={match.id} className="bg-gray-800 border border-gray-700 p-6 rounded-[32px] shadow-2xl group hover:border-indigo-500/50 transition-all relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/5 blur-[60px]"></div>
                             <div className="flex justify-between text-[10px] text-gray-500 mb-4 border-b border-gray-700/50 pb-3 relative">
-                                <span className="font-bold flex items-center gap-2 uppercase tracking-widest"> {new Date(match.match_date).toLocaleString()} • {match.venue?.name}</span>
+                                <span className="font-bold flex items-center gap-2 uppercase tracking-widest"><Clock className="w-3 h-3 text-indigo-500" /> {new Date(match.match_date).toLocaleString()} • {match.venue?.name}</span>
                                 <div className="flex gap-6">
                                     <button onClick={() => setControllingMatch(match)} className="text-green-400 font-black flex items-center gap-1 hover:scale-110 transition-transform tracking-widest uppercase"><PlayCircle className="w-3.5 h-3.5" /> CONTROLAR</button>
                                     <button onClick={async () => { if(confirm('¿Eliminar partido?')) { await axios.delete(`${API_BASE_URL}/matches/${match.id}`, authHeader); fetchMatches(selectedCategory); } }} className="text-red-500/30 hover:text-red-500 transition-all p-1 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button>
@@ -457,7 +457,7 @@ function AdminDashboard() {
         </div>
       )}
 
-      {/* --- OTRAS VISTAS (FECHAS, JUGADORES, ROSTER) SE MANTIENEN IGUAL --- */}
+      {/* --- OTRAS VISTAS (FECHAS, JUGADORES, ROSTER) --- */}
       {activeTab === 'fixture' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
           <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 h-fit shadow-2xl">
@@ -500,9 +500,12 @@ function AdminDashboard() {
                   <div className="flex justify-between items-center mb-8 relative border-b border-gray-700 pb-4"><h3 className="text-xl font-black italic uppercase tracking-tighter text-indigo-400">Jugadores Registrados</h3><span className="text-[10px] font-black bg-gray-900 px-3 py-1.5 rounded-full text-gray-500">{currentRoster.length} FICHAS</span></div>
                   {!uploadTeamId ? <div className="text-gray-700 text-center py-20 italic flex-1 flex flex-col items-center justify-center opacity-30"><Users className="w-20 h-20 mb-4" /><p className="text-sm font-black uppercase tracking-widest">Elige un club</p></div> : 
                       <div className="flex-1 overflow-y-auto custom-scrollbar"><table className="w-full text-left text-sm"><thead className="bg-gray-950 text-gray-500 uppercase font-black text-[10px] sticky top-0 z-10"><tr><th className="px-4 py-4">#</th><th className="px-4 py-4">Nombre</th><th className="px-4 py-4">RUT</th><th className="px-4 py-4 text-right">Gestión</th></tr></thead><tbody className="divide-y divide-gray-800">
-                          {currentRoster.map(p => (
-                              <tr key={p.id} className="hover:bg-gray-850 group transition-all"><td className="px-4 py-4 text-indigo-500 font-black">{p.number || '-'}</td><td className="px-4 py-4 font-black uppercase text-gray-200 text-xs">{p.name}</td><td className="px-4 py-4 text-gray-500 text-[10px] font-mono italic">{p.dni}</td><td className="px-4 py-4 text-right flex gap-4 justify-end"><button onClick={() => setEditingPlayer(p)} className="text-gray-600 hover:text-white"><Edit className="w-4 h-4" /></button><button onClick={() => handleDeletePlayer(p.id)} className="text-red-500/20 group-hover:text-red-500"><Trash2 className="w-4 h-4" /></button></td></tr>
-                          ))}
+                          {currentRoster.map(p => {
+                              const birthYear = p.birth_date ? new Date(p.birth_date).getFullYear() : null;
+                              const age = birthYear ? new Date().getFullYear() - birthYear : null;
+                              return (
+                              <tr key={p.id} className="hover:bg-gray-850 group transition-all"><td className="px-4 py-4 text-indigo-500 font-black">{p.number || '-'}</td><td className="px-4 py-4 font-black uppercase text-gray-200 text-xs">{p.name} {age && <span className="text-[9px] text-gray-500 font-normal ml-1">({age} años)</span>}</td><td className="px-4 py-4 text-gray-500 text-[10px] font-mono italic">{p.dni}</td><td className="px-4 py-4 text-right flex gap-4 justify-end"><button onClick={() => setEditingPlayer(p)} className="text-gray-600 hover:text-white transition-colors"><Edit className="w-4 h-4" /></button><button onClick={() => handleDeletePlayer(p.id)} className="text-red-500/20 group-hover:text-red-500"><Trash2 className="w-4 h-4" /></button></td></tr>
+                          )})}
                       </tbody></table></div>
                   }
               </div>
@@ -520,7 +523,8 @@ function AdminDashboard() {
                         <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">RUT / DNI</label><input type="text" value={editingPlayer.dni || ''} onChange={(e) => setEditingPlayer({...editingPlayer, dni: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black uppercase text-white outline-none" required /></div>
                         <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Dorsal</label><input type="number" value={editingPlayer.number || ''} onChange={(e) => setEditingPlayer({...editingPlayer, number: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black text-white outline-none" /></div>
                     </div>
-                    <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-[24px] font-black uppercase text-xs tracking-[0.4em] shadow-2xl transition-all active:scale-95 text-white">Confirmar Cambios</button>
+                    <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Fecha Nacimiento</label><input type="date" value={editingPlayer.birth_date ? editingPlayer.birth_date.split('T')[0] : ''} onChange={(e) => setEditingPlayer({...editingPlayer, birth_date: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-white outline-none" /></div>
+                    <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-[24px] font-black uppercase text-xs tracking-[0.4em] shadow-2xl transition-all active:scale-95 text-white"><Save className="w-4 h-4" /> Confirmar Cambios</button>
                 </form>
             </div>
         </div>
