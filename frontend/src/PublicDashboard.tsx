@@ -55,7 +55,7 @@ function PublicDashboard() {
     try {
       const res = await axios.get(`${API_BASE_URL}/categories`)
       setCategories(res.data)
-      if (res.data.length > 0 && !selectedCategory) setSelectedCategoryId(res.data[0].id)
+      if (res.data.length > 0 && !selectedCategoryId) setSelectedCategoryId(res.data[0].id)
     } catch (e) { console.error(e) }
   }
 
@@ -103,7 +103,7 @@ function PublicDashboard() {
       let found = false
       for (const d of visibleDays) {
         const start = new Date(d.start_date); const end = new Date(d.end_date); end.setHours(23,59,59,999)
-        if (mDate >= start && mDate <= end) { grouped[day.name].push(m); found = true; break }
+        if (mDate >= start && mDate <= end) { grouped[d.name].push(m); found = true; break }
       }
       if (!found && showAllMatchDays) grouped['Otros']?.push(m)
     })

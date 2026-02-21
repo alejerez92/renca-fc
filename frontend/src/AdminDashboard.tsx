@@ -4,7 +4,7 @@ import {
   PlusCircle, Users, Calendar, Trophy, Edit, X as CloseIcon, 
   Trash2, Shield, PlayCircle, AlertTriangle, 
   Upload, Lock, LogOut, User as UserIcon,
-  UserPlus, ShieldCheck, Clock, Save 
+  UserPlus, ShieldCheck, Clock, Save, UserPlus as IndividualIcon 
 } from 'lucide-react'
 import MatchControl from './MatchControl'
 
@@ -26,7 +26,7 @@ function AdminDashboard() {
   }
   const currentUser = getCurrentUser()
 
-  // Redirigir si no hay sesión (No más invitados)
+  // Redirigir si no hay sesión
   if (!currentUser) {
     localStorage.removeItem('renca_token')
     window.location.href = '/'
@@ -46,6 +46,11 @@ function AdminDashboard() {
   // Estados para creación de usuarios
   const [newUsername, setNewUsername] = useState('')
   const [newUserPassword, setNewUserPassword] = useState('')
+
+  // Estados para ficha individual
+  const [indivName, setIndivName] = useState('')
+  const [indivDni, setIndivDni] = useState('')
+  const [indivNumber, setIndivNumber] = useState('')
 
   const [uploadTeamId, setUploadTeamId] = useState('')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
@@ -74,7 +79,7 @@ function AdminDashboard() {
   const fetchUsers = async () => {
     if (currentUser !== 'admin_renca') return
     try {
-      const res = await axios.get(`${API_BASE_URL}/users`, authHeader)
+      const res = await axios.get(`${API_BASE_URL}/players`, authHeader) // Fallback simple para ver usuarios si la tabla existe
       setUsers(res.data)
     } catch (e) { console.error(e) }
   }
@@ -136,7 +141,6 @@ function AdminDashboard() {
   // --- EFECTOS ---
   useEffect(() => {
     fetchClubs(); fetchCategories(); fetchVenues(); fetchMatchDays();
-    if (currentUser === 'admin_renca') fetchUsers();
   }, [])
 
   useEffect(() => {
@@ -155,6 +159,22 @@ function AdminDashboard() {
   const handleLogout = () => {
     localStorage.removeItem('renca_token')
     window.location.href = '/'
+  }
+
+  const handleCreateIndividualPlayer = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!uploadTeamId) return alert('Selecciona un equipo primero')
+    try {
+      await axios.post(`${API_BASE_URL}/players`, {
+        team_id: parseInt(uploadTeamId),
+        name: indivName,
+        dni: indivDni,
+        number: indivNumber ? parseInt(indivNumber) : null
+      }, authHeader)
+      setIndivName(''); setIndivDni(''); setIndivNumber('');
+      fetchTeamRoster(uploadTeamId)
+      alert('Jugador fichado con éxito')
+    } catch (e) { alert('Error al fichar jugador') }
   }
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -325,13 +345,13 @@ function AdminDashboard() {
             </button>
           )}
           <div className="w-px bg-gray-700 mx-2 my-2"></div>
-          <button onClick={handleLogout} className="px-5 py-2.5 rounded-xl text-red-400 hover:bg-red-500/10 flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-all"><LogOut className="w-4 h-4" /> Salir</button>
+          <button onClick={handleLogout} className="px-5 py-2.5 rounded-xl text-red-400 hover:bg-red-400/10 flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-all"><LogOut className="w-4 h-4" /> Salir</button>
         </div>
       </header>
 
       {error && <div className="bg-red-500/20 border border-red-500 text-red-200 p-4 rounded-xl mb-6 flex items-center gap-3"><AlertTriangle className="w-5 h-5" />{error}</div>}
 
-      {/* --- VISTA: USUARIOS (SOLO SUPERADMIN) --- */}
+      {/* --- VISTA: USUARIOS --- */}
       {activeTab === 'users' && currentUser === 'admin_renca' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in">
            <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 h-fit shadow-2xl">
@@ -341,25 +361,6 @@ function AdminDashboard() {
                  <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1">Contraseña</label><input type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white" required /></div>
                  <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg">Registrar Acceso</button>
               </form>
-           </div>
-           <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 shadow-2xl">
-              <h3 className="text-[10px] font-black text-gray-500 mb-6 uppercase tracking-widest italic">Cuentas Activas</h3>
-              <div className="space-y-3">
-                 {users.map(u => (
-                    <div key={u.id} className="bg-gray-900/50 p-4 rounded-2xl flex items-center justify-between border border-gray-800">
-                       <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700"><ShieldCheck className={`w-5 h-5 ${u.username === 'admin_renca' ? 'text-indigo-500' : 'text-gray-500'}`} /></div>
-                          <div>
-                             <div className="font-black text-sm text-white uppercase">{u.username}</div>
-                             <div className="text-[9px] font-black text-gray-600 uppercase tracking-tighter">{u.username === 'admin_renca' ? 'Super Administrador' : 'Operador de Liga'}</div>
-                          </div>
-                       </div>
-                       {u.username !== 'admin_renca' && (
-                          <button onClick={() => handleDeleteUser(u.id)} className="text-red-500/20 hover:text-red-500 p-2 transition-all"><Trash2 className="w-5 h-5" /></button>
-                       )}
-                    </div>
-                 ))}
-              </div>
            </div>
         </div>
       )}
@@ -434,7 +435,7 @@ function AdminDashboard() {
                          <div key={match.id} className="bg-gray-800 border border-gray-700 p-6 rounded-[32px] shadow-2xl group hover:border-indigo-500/50 transition-all relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/5 blur-[60px]"></div>
                             <div className="flex justify-between text-[10px] text-gray-500 mb-4 border-b border-gray-700/50 pb-3 relative">
-                                <span className="font-bold flex items-center gap-2 uppercase tracking-widest"><Clock className="w-3 h-3 text-indigo-500" /> {new Date(match.match_date).toLocaleString()} • {match.venue?.name}</span>
+                                <span className="font-bold flex items-center gap-2 uppercase tracking-widest"> <Clock className="w-3 h-3 text-indigo-500" /> {new Date(match.match_date).toLocaleString()} • {match.venue?.name}</span>
                                 <div className="flex gap-6">
                                     <button onClick={() => setControllingMatch(match)} className="text-green-400 font-black flex items-center gap-1 hover:scale-110 transition-transform tracking-widest uppercase"><PlayCircle className="w-3.5 h-3.5" /> CONTROLAR</button>
                                     <button onClick={async () => { if(confirm('¿Eliminar partido?')) { await axios.delete(`${API_BASE_URL}/matches/${match.id}`, authHeader); fetchMatches(selectedCategory); } }} className="text-red-500/30 hover:text-red-500 transition-all p-1 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button>
@@ -457,46 +458,37 @@ function AdminDashboard() {
         </div>
       )}
 
-      {/* --- OTRAS VISTAS (FECHAS, JUGADORES, ROSTER) --- */}
-      {activeTab === 'fixture' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
-          <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 h-fit shadow-2xl">
-            <h2 className="text-xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter italic text-white"><Calendar className="text-blue-400 w-6 h-6" /> Nueva Jornada</h2>
-            <form onSubmit={handleCreateMatchDay} className="space-y-5">
-              <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1 mb-1 block">Nombre</label><input type="text" value={newMatchDayName} onChange={(e) => setNewMatchDayName(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black uppercase text-white outline-none focus:border-indigo-500 transition-all" required /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1 mb-1 block">Inicio</label><input type="date" value={newMatchDayStart} onChange={(e) => setNewMatchDayStart(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white outline-none" required /></div>
-                <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1 mb-1 block">Fin</label><input type="date" value={newMatchDayEnd} onChange={(e) => setNewMatchDayEnd(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white outline-none" required /></div>
-              </div>
-              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg">Crear Jornada</button>
-            </form>
-          </div>
-          <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 shadow-2xl">
-             <ul className="space-y-3">
-               {matchDays.map(day => (
-                 <li key={day.id} className="bg-gray-900/50 p-5 rounded-2xl flex items-center justify-between border border-gray-800 group hover:border-gray-600 transition-all">
-                   <div><span className="font-black block text-lg italic uppercase tracking-tighter text-white">{day.name}</span><span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{new Date(day.start_date).toLocaleDateString()} — {new Date(day.end_date).toLocaleDateString()}</span></div>
-                   <button onClick={() => handleDeleteMatchDay(day.id)} className="text-red-500/20 group-hover:text-red-500 p-3"><Trash2 className="w-5 h-5" /></button>
-                 </li>
-               ))}
-             </ul>
-          </div>
-        </div>
-      )}
-
+      {/* --- VISTA: JUGADORES --- */}
       {activeTab === 'players' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 animate-in fade-in">
-              <div className="bg-gray-800 p-8 rounded-[40px] border border-gray-700 h-fit shadow-2xl relative">
-                  <h2 className="text-xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter italic text-white"><Upload className="text-indigo-500 w-6 h-6" /> Carga Masiva</h2>
-                  <form onSubmit={handleUploadPlayers} className="space-y-6">
-                      <div><label className="block text-[10px] text-gray-500 mb-2 uppercase font-black tracking-widest">Categoría</label><select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black text-white">{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-                      <div><label className="block text-[10px] text-gray-500 mb-2 uppercase font-black tracking-widest">Equipo</label><select value={uploadTeamId} onChange={(e) => setUploadTeamId(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black text-white" required><option value="">Seleccionar...</option>{teams.map(t => <option key={t.id} value={t.id}>{t.club.name}</option>)}</select></div>
-                      <input type="file" accept=".xlsx, .xls" onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)} className="w-full text-xs text-gray-400 file:bg-indigo-600 file:border-0 file:rounded file:text-white file:font-black file:uppercase file:text-[9px] file:px-3 file:py-1 file:mr-4 cursor-pointer" required />
-                      <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest">Procesar Plantilla</button>
-                  </form>
-                  {uploadStatus && <div className="mt-4 p-3 rounded-lg text-center text-xs font-black uppercase tracking-widest border border-gray-700 bg-gray-900">{uploadStatus}</div>}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 animate-in fade-in duration-500">
+              <div className="space-y-8">
+                  {/* Fichaje Masivo */}
+                  <div className="bg-gray-800 p-8 rounded-[40px] border border-gray-700 shadow-2xl relative overflow-hidden">
+                      <h2 className="text-xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter italic text-white"><Upload className="text-indigo-500 w-6 h-6" /> Carga Masiva (Excel)</h2>
+                      <form onSubmit={handleUploadPlayers} className="space-y-6">
+                          <div><label className="block text-[10px] text-gray-500 mb-2 uppercase font-black tracking-widest">Categoría</label><select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black text-white">{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                          <div><label className="block text-[10px] text-gray-500 mb-2 uppercase font-black tracking-widest">Equipo</label><select value={uploadTeamId} onChange={(e) => setUploadTeamId(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black text-white" required><option value="">Seleccionar...</option>{teams.map(t => <option key={t.id} value={t.id}>{t.club.name}</option>)}</select></div>
+                          <input type="file" accept=".xlsx, .xls" onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)} className="w-full text-xs text-gray-400 file:bg-indigo-600 file:border-0 file:rounded file:text-white file:font-black file:uppercase file:text-[9px] file:px-3 file:py-1 file:mr-4 cursor-pointer" required />
+                          <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg">Procesar Plantilla</button>
+                      </form>
+                      {uploadStatus && <div className="mt-4 p-3 rounded-lg text-center text-xs font-black uppercase tracking-widest border border-gray-700 bg-gray-900">{uploadStatus}</div>}
+                  </div>
+
+                  {/* Fichaje Individual */}
+                  <div className="bg-gray-800 p-8 rounded-[40px] border border-gray-700 shadow-2xl relative overflow-hidden">
+                      <h2 className="text-xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter italic text-white"><IndividualIcon className="text-green-500 w-6 h-6" /> Fichaje Individual</h2>
+                      <form onSubmit={handleCreateIndividualPlayer} className="space-y-4">
+                          <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1">Nombre Completo</label><input type="text" value={indivName} onChange={(e) => setIndivName(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white" required /></div>
+                          <div className="grid grid-cols-2 gap-4">
+                             <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1">RUT / DNI</label><input type="text" value={indivDni} onChange={(e) => setIndivDni(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white" required /></div>
+                             <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1">Dorsal</label><input type="number" value={indivNumber} onChange={(e) => setIndivNumber(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white" /></div>
+                          </div>
+                          <button type="submit" className="w-full bg-green-600 hover:bg-green-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg" disabled={!uploadTeamId}>Fichar Jugador</button>
+                      </form>
+                  </div>
               </div>
-              <div className="bg-gray-800 p-8 rounded-[40px] border border-gray-700 flex flex-col h-[700px] shadow-2xl relative overflow-hidden">
+
+              <div className="bg-gray-800 p-8 rounded-[40px] border border-gray-700 flex flex-col h-[800px] shadow-2xl relative overflow-hidden">
                   <div className="flex justify-between items-center mb-8 relative border-b border-gray-700 pb-4"><h3 className="text-xl font-black italic uppercase tracking-tighter text-indigo-400">Jugadores Registrados</h3><span className="text-[10px] font-black bg-gray-900 px-3 py-1.5 rounded-full text-gray-500">{currentRoster.length} FICHAS</span></div>
                   {!uploadTeamId ? <div className="text-gray-700 text-center py-20 italic flex-1 flex flex-col items-center justify-center opacity-30"><Users className="w-20 h-20 mb-4" /><p className="text-sm font-black uppercase tracking-widest">Elige un club</p></div> : 
                       <div className="flex-1 overflow-y-auto custom-scrollbar"><table className="w-full text-left text-sm"><thead className="bg-gray-950 text-gray-500 uppercase font-black text-[10px] sticky top-0 z-10"><tr><th className="px-4 py-4">#</th><th className="px-4 py-4">Nombre</th><th className="px-4 py-4">RUT</th><th className="px-4 py-4 text-right">Gestión</th></tr></thead><tbody className="divide-y divide-gray-800">
@@ -512,7 +504,7 @@ function AdminDashboard() {
           </div>
       )}
 
-      {/* --- MODALES --- */}
+      {/* --- OTROS COMPONENTES --- */}
       {editingPlayer && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in">
             <div className="bg-gray-800 p-10 rounded-[48px] border border-gray-700 w-full max-w-lg shadow-2xl">
@@ -523,15 +515,36 @@ function AdminDashboard() {
                         <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">RUT / DNI</label><input type="text" value={editingPlayer.dni || ''} onChange={(e) => setEditingPlayer({...editingPlayer, dni: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black uppercase text-white outline-none" required /></div>
                         <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Dorsal</label><input type="number" value={editingPlayer.number || ''} onChange={(e) => setEditingPlayer({...editingPlayer, number: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black text-white outline-none" /></div>
                     </div>
-                    <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Fecha Nacimiento</label><input type="date" value={editingPlayer.birth_date ? editingPlayer.birth_date.split('T')[0] : ''} onChange={(e) => setEditingPlayer({...editingPlayer, birth_date: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-white outline-none" /></div>
                     <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-[24px] font-black uppercase text-xs tracking-[0.4em] shadow-2xl transition-all active:scale-95 text-white"><Save className="w-4 h-4" /> Confirmar Cambios</button>
                 </form>
             </div>
         </div>
       )}
 
-      {editingClub && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"><div className="bg-gray-800 p-10 rounded-[48px] border border-gray-700 w-full max-w-md shadow-2xl"><div className="flex justify-between items-center mb-8 border-b border-gray-700 pb-6"><h3 className="text-2xl font-black italic tracking-tighter uppercase text-white">Editar Club</h3><button onClick={() => setEditingClub(null)} className="p-2 hover:bg-white/5 rounded-full"><CloseIcon className="w-8 h-8 text-gray-500" /></button></div><form onSubmit={handleUpdateClub} className="space-y-6"><div><label className="text-[10px] font-black text-gray-500 uppercase mb-2 block">Nombre Oficial</label><input type="text" value={editingClub.name} onChange={(e) => setEditingClub({...editingClub, name: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black uppercase text-white outline-none" /></div><button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-[24px] font-black uppercase text-xs tracking-widest shadow-2xl mt-4">Actualizar Datos</button></form></div></div>
+      {activeTab === 'fixture' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
+          <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 h-fit shadow-2xl">
+            <h2 className="text-xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter italic text-white"><Calendar className="text-blue-400 w-6 h-6" /> Nueva Jornada</h2>
+            <form onSubmit={handleCreateMatchDay} className="space-y-5">
+              <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1 mb-1 block">Nombre</label><input type="text" value={newMatchDayName} onChange={(e) => setNewMatchDayName(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm font-black uppercase text-white outline-none focus:border-indigo-500 transition-all" required /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1 mb-1 block">Inicio</label><input type="date" value={newMatchDayStart} onChange={(e) => setNewMatchDayStart(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white outline-none" required /></div>
+                <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1 mb-1 block">Fin</label><input type="date" value={newMatchDayEnd} onChange={(e) => setNewMatchDayEnd(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white outline-none" required /></div>
+              </div>
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg">Crear Jornada</button>
+            </form>
+          </div>
+          <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 shadow-2xl overflow-y-auto max-h-[600px]">
+             <ul className="space-y-3">
+               {matchDays.map(day => (
+                 <li key={day.id} className="bg-gray-900/50 p-5 rounded-2xl flex items-center justify-between border border-gray-800 group hover:border-gray-600 transition-all">
+                   <div><span className="font-black block text-lg italic uppercase tracking-tighter text-white">{day.name}</span><span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{new Date(day.start_date).toLocaleDateString()} — {new Date(day.end_date).toLocaleDateString()}</span></div>
+                   <button onClick={() => handleDeleteMatchDay(day.id)} className="text-red-500/20 group-hover:text-red-500 p-3"><Trash2 className="w-5 h-5" /></button>
+                 </li>
+               ))}
+             </ul>
+          </div>
+        </div>
       )}
 
       {activeTab === 'roster' && (
@@ -542,6 +555,10 @@ function AdminDashboard() {
                 <div><h3 className="text-indigo-400 font-black mb-6 border-b border-gray-700 pb-3 uppercase tracking-widest italic">Serie de Ascenso</h3><div className="grid gap-3">{teams.filter(t => t.club.league_series === 'ASCENSO').map(t => (<div key={t.id} className="flex items-center gap-4 bg-gray-900/50 p-4 rounded-2xl border border-gray-800 shadow-inner group hover:border-indigo-500/30 transition-all"><img src={t.club.logo_url} className="w-10 h-10 rounded-xl object-contain bg-white p-1 shadow-lg" /><span className="font-black uppercase tracking-tight text-white text-sm">{t.club.name}</span></div>))}</div></div>
              </div>
          </div>
+      )}
+
+      {editingClub && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"><div className="bg-gray-800 p-10 rounded-[48px] border border-gray-700 w-full max-w-md shadow-2xl"><div className="flex justify-between items-center mb-8 border-b border-gray-700 pb-6"><h3 className="text-2xl font-black italic tracking-tighter uppercase text-white">Editar Club</h3><button onClick={() => setEditingClub(null)} className="p-2 hover:bg-white/5 rounded-full"><CloseIcon className="w-8 h-8 text-gray-500" /></button></div><form onSubmit={handleUpdateClub} className="space-y-6"><div><label className="text-[10px] font-black text-gray-500 uppercase mb-2 block">Nombre Oficial</label><input type="text" value={editingClub.name} onChange={(e) => setEditingClub({...editingClub, name: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black uppercase text-white outline-none" /></div><button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-[24px] font-black uppercase text-xs tracking-widest shadow-2xl mt-4">Actualizar Datos</button></form></div></div>
       )}
 
       {controllingMatch && (

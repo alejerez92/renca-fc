@@ -31,6 +31,10 @@ function MatchControl({ match, onClose }: { match: any, onClose: () => void }) {
 
   useEffect(() => { fetchMatchData() }, [fetchMatchData])
 
+  // CÁLCULO DE MARCADOR EN TIEMPO REAL
+  const currentHomeScore = events.filter(e => e.event_type === 'GOAL' && e.player.team_id === match.home_team_id).length
+  const currentAwayScore = events.filter(e => e.event_type === 'GOAL' && e.player.team_id === match.away_team_id).length
+
   const handleAddEvent = async (playerId: number, type: string) => {
     try {
       await axios.post(`${API_BASE_URL}/match-events`, { 
@@ -38,8 +42,9 @@ function MatchControl({ match, onClose }: { match: any, onClose: () => void }) {
         player_id: playerId, 
         event_type: type, 
         minute: parseInt(eventMinute) || 0 
-      }, authHeader) // AHORA SÍ ENVIAMOS EL TOKEN
-      setEventMinute(''); fetchMatchData();
+      }, authHeader)
+      setEventMinute(''); 
+      fetchMatchData();
     } catch (e) { alert('Error de autorización o servidor') }
   }
 
@@ -52,9 +57,10 @@ function MatchControl({ match, onClose }: { match: any, onClose: () => void }) {
 
   const toggleMatchStatus = async () => {
     try {
+      // Al cerrar el partido, enviamos los goles calculados para asegurar que la DB se sincronice
       await axios.put(`${API_BASE_URL}/matches/${match.id}/result`, { 
-        home_score: match.home_score, 
-        away_score: match.away_score, 
+        home_score: currentHomeScore, 
+        away_score: currentAwayScore, 
         is_played: !match.is_played 
       }, authHeader)
       onClose()
@@ -72,13 +78,13 @@ function MatchControl({ match, onClose }: { match: any, onClose: () => void }) {
            <div className="text-center">
               <div className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.2em] mb-1">LOCAL</div>
               <div className="font-black text-xl uppercase italic truncate max-w-[150px] text-white leading-none mb-2">{match.home_team.club.name}</div>
-              <div className="text-4xl font-black italic text-white">{match.home_score}</div>
+              <div className="text-4xl font-black italic text-white">{currentHomeScore}</div>
            </div>
            <div className="bg-gray-800 w-12 h-12 rounded-full flex items-center justify-center font-black text-xs text-gray-600 border border-gray-700 shadow-inner italic">VS</div>
            <div className="text-center">
               <div className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.2em] mb-1">VISITA</div>
               <div className="font-black text-xl uppercase italic truncate max-w-[150px] text-white leading-none mb-2">{match.away_team.club.name}</div>
-              <div className="text-4xl font-black italic text-white">{match.away_score}</div>
+              <div className="text-4xl font-black italic text-white">{currentAwayScore}</div>
            </div>
         </div>
         <button onClick={toggleMatchStatus} className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-lg ${match.is_played ? 'bg-yellow-600 text-black' : 'bg-green-600 text-white'}`}>
@@ -182,7 +188,7 @@ function MatchControl({ match, onClose }: { match: any, onClose: () => void }) {
                      <div className="text-[10px] font-mono text-gray-600 whitespace-nowrap pt-1 uppercase tracking-tighter">{new Date(log.timestamp).toLocaleTimeString()}</div>
                      <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                           <span className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">{log.user?.username || 'Sistema'}</span>
+                           <span className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">{log.user_name || 'Sistema'}</span>
                            <Flag className="w-3 h-3 text-gray-700" />
                            <span className="text-[10px] font-black uppercase text-gray-500 italic">{log.action}</span>
                         </div>
