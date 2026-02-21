@@ -21,12 +21,11 @@ function AdminDashboard() {
   const [venues, setVenues] = useState<any[]>([])
   const [matchDays, setMatchDays] = useState<any[]>([])
   const [auditLogs, setAuditLogs] = useState<any[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const [error] = useState<string | null>(null)
 
   const [uploadTeamId, setUploadTeamId] = useState('')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadStatus, setUploadStatus] = useState<string>('')
-  const [uploadErrors, setUploadErrors] = useState<string[]>([])
   const [currentRoster, setCurrentRoster] = useState<any[]>([])
   const [editingPlayer, setEditingPlayer] = useState<any>(null)
 
@@ -40,7 +39,6 @@ function AdminDashboard() {
   const [matchDate, setMatchDate] = useState('')
   const [matchTime, setMatchTime] = useState('')
   const [matchVenue, setMatchVenue] = useState('')
-  const [editingMatch, setEditingMatch] = useState<any>(null)
   const [controllingMatch, setControllingMatch] = useState<any>(null)
   const [showPastMatches, setShowPastMatches] = useState(true)
 
@@ -149,14 +147,12 @@ function AdminDashboard() {
           const res = await axios.post(`${API_BASE_URL}/players/upload?team_id=${uploadTeamId}`, formData, {
               headers: { ...authHeader.headers, 'Content-Type': 'multipart/form-data' }
           })
-          const { created, updated, errors } = res.data
+          const { created, updated } = res.data
           setUploadStatus(`Éxito: ${created} nuevos, ${updated} actualizados.`)
-          setUploadErrors(errors || [])
           setUploadFile(null)
           fetchTeamRoster(uploadTeamId)
       } catch (error: any) {
           setUploadStatus(`Error al procesar archivo.`)
-          setUploadErrors([error.response?.data?.detail || 'Error interno'])
       }
   }
 
@@ -242,18 +238,6 @@ function AdminDashboard() {
     try { await axios.delete(`${API_BASE_URL}/match-days/${id}`, authHeader); fetchMatchDays(); } catch (error) { alert('Error') }
   }
 
-  const isAdultCategory = () => {
-    return categories.find(c => c.id.toString() === selectedCategory.toString())?.parent_category === 'Adultos'
-  }
-
-  const getPlayerAgeStatus = (birthDate: string | null) => {
-      if (!birthDate) return { status: 'unknown', age: null }
-      const birthYear = new Date(birthDate).getFullYear()
-      const currentYear = new Date().getFullYear()
-      const age = currentYear - birthYear
-      return { status: 'ok', age }
-  }
-
   const getGroupedMatches = () => {
     const grouped: Record<string, any[]> = {}
     const now = new Date()
@@ -304,7 +288,7 @@ function AdminDashboard() {
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2"><PlusCircle className="text-green-500 w-5 h-5" /> Nuevo Club</h2>
             <form onSubmit={handleCreateClub} className="space-y-4">
               <div><label className="text-xs text-gray-400 uppercase font-black">Nombre</label><input type="text" value={newClubName} onChange={(e) => setNewClubName(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2" required /></div>
-              {isAdultCategory() && (<div><label className="text-xs text-gray-400 uppercase font-black">Serie Adulto</label><select value={newClubSeries} onChange={(e) => setNewClubSeries(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2"><option value="HONOR">Honor</option><option value="ASCENSO">Ascenso</option></select></div>)}
+              {categories.find(c => c.id.toString() === selectedCategory.toString())?.parent_category === 'Adultos' && (<div><label className="text-xs text-gray-400 uppercase font-black">Serie Adulto</label><select value={newClubSeries} onChange={(e) => setNewClubSeries(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2"><option value="HONOR">Honor</option><option value="ASCENSO">Ascenso</option></select></div>)}
               <div><label className="text-xs text-gray-400 uppercase font-black">Logo URL</label><input type="text" value={newClubLogo} onChange={(e) => setNewClubLogo(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2" /></div>
               <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-lg font-black uppercase text-xs tracking-widest shadow-lg transition-all">Guardar Club</button>
             </form>
@@ -320,7 +304,7 @@ function AdminDashboard() {
                      </div>
                      <div>
                         <span className="font-bold text-sm block">{club.name}</span>
-                        {isAdultCategory() && <span className="text-[9px] font-black uppercase text-indigo-400 tracking-widest">{club.league_series}</span>}
+                        {categories.find(c => c.id.toString() === selectedCategory.toString())?.parent_category === 'Adultos' && <span className="text-[9px] font-black uppercase text-indigo-400 tracking-widest">{club.league_series}</span>}
                      </div>
                    </div>
                    <div className="flex gap-2">
@@ -350,7 +334,7 @@ function AdminDashboard() {
                       <label className="text-[10px] text-gray-500 uppercase font-black">Local</label>
                       <select value={homeTeamId} onChange={(e) => { setHomeTeamId(e.target.value); setAwayTeamId(''); }} className="w-full bg-gray-700 p-2 rounded text-xs font-bold" required>
                         <option value="">Local...</option>
-                        {teams.map(t => <option key={t.id} value={t.id}>{isAdultCategory() ? `[${t.club.league_series[0]}] ` : ''}{t.club.name}</option>)}
+                        {teams.map(t => <option key={t.id} value={t.id}>{(categories.find(c => c.id.toString() === selectedCategory.toString())?.parent_category === 'Adultos') ? `[${t.club.league_series[0]}] ` : ''}{t.club.name}</option>)}
                       </select>
                     </div>
                     <div>
@@ -360,11 +344,11 @@ function AdminDashboard() {
                         {teams
                           .filter(t => t.id.toString() !== homeTeamId)
                           .filter(t => {
-                             if (!isAdultCategory() || !homeTeamId) return true
+                             if ((categories.find(c => c.id.toString() === selectedCategory.toString())?.parent_category !== 'Adultos') || !homeTeamId) return true
                              const home = teams.find(ht => ht.id.toString() === homeTeamId)
                              return home ? t.club.league_series === home.club.league_series : true
                           })
-                          .map(t => <option key={t.id} value={t.id}>{isAdultCategory() ? `[${t.club.league_series[0]}] ` : ''}{t.club.name}</option>)
+                          .map(t => <option key={t.id} value={t.id}>{(categories.find(c => c.id.toString() === selectedCategory.toString())?.parent_category === 'Adultos') ? `[${t.club.league_series[0]}] ` : ''}{t.club.name}</option>)
                         }
                       </select>
                     </div>
@@ -462,9 +446,17 @@ function AdminDashboard() {
                   <div className="flex justify-between items-center mb-6"><h3 className="text-lg font-bold italic uppercase tracking-tighter text-indigo-400">Plantel Actual</h3><span className="text-[10px] font-black bg-gray-900 px-2 py-1 rounded text-gray-500">{currentRoster.length} JUGADORES</span></div>
                   {!uploadTeamId ? <div className="text-gray-600 text-center py-20 italic flex-1 flex flex-col items-center justify-center gap-4"><Users className="w-16 h-16 opacity-10" /><p className="text-xs font-bold uppercase tracking-widest">Selecciona un equipo para gestionar</p></div> : 
                       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar"><table className="w-full text-left text-sm"><thead className="bg-gray-900 text-gray-500 text-[10px] uppercase font-black sticky top-0 z-10 italic tracking-widest"><tr><th className="px-3 py-3">#</th><th className="px-3 py-3">Jugador</th><th className="px-3 py-3">RUT</th><th className="px-3 py-3 text-right">Acción</th></tr></thead><tbody className="divide-y divide-gray-800">
-                          {currentRoster.map(p => (
-                              <tr key={p.id} className="hover:bg-gray-750 transition-colors group"><td className="px-3 py-3 text-indigo-400 font-black">{p.number || '-'}</td><td className="px-3 py-3 font-bold uppercase text-gray-200 text-xs">{p.name}</td><td className="px-3 py-3 text-gray-500 text-xs font-mono italic">{p.dni}</td><td className="px-3 py-3 text-right flex gap-3 justify-end"><button onClick={() => setEditingPlayer(p)} className="text-gray-500 hover:text-white"><Edit className="w-4 h-4" /></button><button onClick={() => handleDeletePlayer(p.id)} className="text-red-500/20 group-hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button></td></tr>
-                          ))}
+                          {currentRoster.map(p => {
+                              const birthYear = p.birth_date ? new Date(p.birth_date).getFullYear() : null;
+                              const age = birthYear ? new Date().getFullYear() - birthYear : null;
+                              return (
+                              <tr key={p.id} className="hover:bg-gray-750 transition-colors group">
+                                <td className="px-3 py-3 text-indigo-400 font-black">{p.number || '-'}</td>
+                                <td className="px-3 py-3 font-bold uppercase text-gray-200 text-xs">{p.name} {age && <span className="text-[9px] text-gray-500 font-normal ml-1">({age} años)</span>}</td>
+                                <td className="px-3 py-3 text-gray-500 text-xs font-mono italic">{p.dni}</td>
+                                <td className="px-3 py-3 text-right flex gap-3 justify-end"><button onClick={() => setEditingPlayer(p)} className="text-gray-500 hover:text-white"><Edit className="w-4 h-4" /></button><button onClick={() => handleDeletePlayer(p.id)} className="text-red-500/20 group-hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button></td>
+                              </tr>
+                          )})}
                       </tbody></table></div>
                   }
               </div>
