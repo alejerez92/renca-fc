@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
-import { PlusCircle, Save, Users, Calendar, Trophy, MapPin, Edit, X as CloseIcon, Trash2, Shield, PlayCircle, History, Clock, AlertTriangle, Upload, FileSpreadsheet, RefreshCcw, Lock } from 'lucide-react'
+import { PlusCircle, Save, Users, Calendar, Trophy, Edit, X as CloseIcon, Trash2, Shield, PlayCircle, History, AlertTriangle, Upload, FileSpreadsheet, Lock } from 'lucide-react'
 import MatchControl from './MatchControl'
 
-const API_BASE_URL = 'http://localhost:8000'
+const API_BASE_URL = 'https://renca-fc.onrender.com'
 
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'clubs' | 'matches' | 'roster' | 'players' | 'fixture' | 'audit'>('clubs')
@@ -25,7 +25,7 @@ function AdminDashboard() {
   const [uploadStatus, setUploadStatus] = useState<string>('')
   const [uploadErrors, setUploadErrors] = useState<string[]>([])
   const [currentRoster, setCurrentRoster] = useState<any[]>([])
-  const [editingPlayer, setEditingPlayer] = useState<any>(null) // Nuevo estado para editar jugador
+  const [editingPlayer, setEditingPlayer] = useState<any>(null)
 
   // Form Clubes
   const [newClubName, setNewClubName] = useState('')
@@ -230,13 +230,6 @@ function AdminDashboard() {
     } catch (error) { alert('Error') }
   }
 
-  const handleUpdateScore = async (matchId: number, home: number, away: number) => {
-    try {
-      await axios.put(`${API_BASE_URL}/matches/${matchId}/result`, { home_score: home, away_score: away, is_played: true })
-      fetchMatches(selectedCategory)
-    } catch (error) { alert('Error') }
-  }
-
   const handleDeleteMatch = async (matchId: number) => {
     if (!confirm('¿Eliminar?')) return
     try { await axios.delete(`${API_BASE_URL}/matches/${matchId}`); fetchMatches(selectedCategory); } catch (error) { alert('Error') }
@@ -266,7 +259,7 @@ function AdminDashboard() {
   }
 
   const getPlayerAgeStatus = (birthDate: string | null) => {
-      if (!birthDate) return { status: 'unknown', age: null, label: 'Sin Fecha' }
+      if (!birthDate) return { status: 'unknown', age: null }
       
       const birthYear = new Date(birthDate).getFullYear()
       const currentYear = new Date().getFullYear()
@@ -275,11 +268,11 @@ function AdminDashboard() {
       const category = categories.find(c => c.id.toString() === selectedCategory.toString())
       
       // Si no hay reglas de edad para esta categoría, solo mostramos la edad
-      if (!category || category.min_age === 0) return { status: 'ok', age, label: 'Habilitado' }
+      if (!category || category.min_age === 0) return { status: 'ok', age }
 
-      if (age >= category.min_age) return { status: 'ok', age, label: 'Habilitado' }
-      if (age >= category.exception_min_age) return { status: 'exception', age, label: 'Excepción' }
-      return { status: 'invalid', age, label: 'No Habilitado' }
+      if (age >= category.min_age) return { status: 'ok', age }
+      if (age >= category.exception_min_age) return { status: 'exception', age }
+      return { status: 'invalid', age }
   }
 
   const countExceptions = () => {
@@ -561,7 +554,7 @@ function AdminDashboard() {
                                   </thead>
                                   <tbody className="divide-y divide-gray-700">
                                       {currentRoster.map(p => {
-                                          const { status, age, label } = getPlayerAgeStatus(p.birth_date)
+                                          const { status, age } = getPlayerAgeStatus(p.birth_date)
                                           return (
                                           <tr key={p.id} className="group hover:bg-gray-750">
                                               <td className="px-3 py-2 text-gray-400">{p.number || '-'}</td>

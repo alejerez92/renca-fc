@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { Trophy, Users, Calendar, ChevronRight, Menu, X, Shield, Medal, Star } from 'lucide-react'
+import { Trophy, Users, Menu, X, Shield } from 'lucide-react'
 import MatchDetailModal from './MatchDetailModal'
 import ClubDetailModal from './ClubDetailModal'
 
-const API_BASE_URL = 'http://localhost:8000'
+const API_BASE_URL = 'https://renca-fc.onrender.com'
 
 interface Category {
   id: number
@@ -24,7 +24,6 @@ function PublicDashboard() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | 'adultos'>(1)
   const [adultSeries, setAdultSeries] = useState<'HONOR' | 'ASCENSO'>('HONOR')
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
-  const [loading, setLoading] = useState(false)
   const [activeView, setActiveView] = useState<'table' | 'fixture' | 'scorers'>('table')
   
   const [matchDays, setMatchDays] = useState<any[]>([])
@@ -68,35 +67,27 @@ function PublicDashboard() {
   }
 
   const fetchLeaderboard = async () => {
-    setLoading(true)
     try {
       let url = `${API_BASE_URL}/leaderboard/${selectedCategoryId}?series=${adultSeries}`
       if (String(selectedCategoryId) === 'adultos') url = `${API_BASE_URL}/leaderboard/aggregated/adultos?series=${adultSeries}`
       const res = await axios.get(url)
       setLeaderboard(res.data || [])
-    } catch (e) { console.error(e) } finally { setLoading(false) }
+    } catch (e) { console.error(e) }
   }
 
   const fetchMatches = async () => {
     if (selectedCategoryId === 'adultos') return setMatches([])
-    setLoading(true)
     try {
       const res = await axios.get(`${API_BASE_URL}/matches/${selectedCategoryId}?series=${adultSeries}`)
       setMatches(res.data || [])
-    } catch (e) { console.error(e) } finally { setLoading(false) }
+    } catch (e) { console.error(e) }
   }
 
   const fetchScorers = async () => {
-    setLoading(true)
     try {
         const res = await axios.get(`${API_BASE_URL}/top-scorers/${selectedCategoryId}?series=${adultSeries}`)
         setScorers(res.data || [])
-    } catch (e) {
-        console.error(e)
-        setScorers([])
-    } finally {
-        setLoading(false)
-    }
+    } catch (e) { console.error(e); setScorers([]) }
   }
 
   const getMatchesByDay = () => {
@@ -126,7 +117,6 @@ function PublicDashboard() {
 
   return (
     <div className="flex h-screen bg-gray-900 text-gray-100 font-sans">
-      {/* Sidebar */}
       <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-gray-800 border-r border-gray-700 transition-all duration-300 flex flex-col`}>
         <div className="p-6 flex items-center gap-3">
           <Trophy className="text-yellow-500 w-8 h-8 flex-shrink-0" />
@@ -150,7 +140,6 @@ function PublicDashboard() {
         </div>
       </aside>
 
-      {/* Main */}
       <main className="flex-1 overflow-y-auto flex flex-col">
         <header className="h-16 border-b border-gray-700 bg-gray-800/50 flex items-center px-8 justify-between sticky top-0 backdrop-blur-sm z-10">
           <div className="flex items-center gap-4">
@@ -171,8 +160,6 @@ function PublicDashboard() {
         </header>
 
         <div className="p-8 max-w-6xl mx-auto w-full">
-          
-          {/* --- VISTA: TABLA POSICIONES (RESTAURADA COMPLETA) --- */}
           {activeView === 'table' && (
             <div className="bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden shadow-2xl">
                 <div className="overflow-x-auto">
@@ -217,7 +204,6 @@ function PublicDashboard() {
             </div>
           )}
 
-          {/* --- VISTA: FIXTURE --- */}
           {activeView === 'fixture' && (
             <div className="space-y-8">
               <button onClick={() => setShowAllMatchDays(!showAllMatchDays)} className="text-[10px] font-black text-indigo-400 uppercase tracking-widest border border-indigo-500/30 px-3 py-1 rounded-lg ml-auto block">{showAllMatchDays ? 'Ocultar pasados' : 'Ver todo'}</button>
@@ -244,10 +230,8 @@ function PublicDashboard() {
             </div>
           )}
 
-          {/* --- VISTA: GOLEADORES --- */}
           {activeView === 'scorers' && (
             <div className="space-y-12">
-               {/* Podio ordenado visualmente: 2 - 1 - 3 */}
                <div className="flex flex-col sm:flex-row items-end justify-center gap-4 pt-10">
                   {[1, 0, 2].map((pos) => {
                       const scorer = scorers[pos];
@@ -270,7 +254,6 @@ function PublicDashboard() {
                   })}
                </div>
 
-               {/* Tabla Resto */}
                <div className="bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden shadow-2xl">
                   <table className="w-full text-left">
                      <thead className="bg-gray-900/50 text-gray-500 text-[10px] uppercase font-bold tracking-widest">
@@ -291,7 +274,6 @@ function PublicDashboard() {
                </div>
             </div>
           )}
-
         </div>
       </main>
 

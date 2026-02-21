@@ -1,218 +1,159 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
-import { X, Save, Clock, Flag, AlertTriangle, XCircle, Trash2, ArrowLeft, Search, Lock, Unlock } from 'lucide-react'
+import { Save, Flag, Trash2, ArrowLeft, Search, Lock, Unlock } from 'lucide-react'
 
-const API_BASE_URL = 'http://localhost:8000'
+const API_BASE_URL = 'https://renca-fc.onrender.com'
 
 function MatchControl({ match, onClose }: { match: any, onClose: () => void }) {
-  const [players, setPlayers] = useState<any[]>([])
   const [events, setEvents] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  
-  const [selectedPlayer, setSelectedPlayer] = useState('')
-  const [eventType, setEventType] = useState<'GOAL' | 'YELLOW_CARD' | 'RED_CARD'>('GOAL')
-  const [minute, setMinute] = useState('')
+  const [players, setPlayers] = useState<any[]>([])
+  const [audit, setAudit] = useState<any[]>([])
+  const [activeTab, setActiveTab] = useState<'control' | 'audit'>('control')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [eventMinute, setEventMinute] = useState<string>('')
 
-  // Estados para búsqueda
-  const [homeSearch, setHomeSearch] = useState('')
-  const [awaySearch, setAwaySearch] = useState('')
-
-  // Estado de Bloqueo Local (Para permitir correcciones temporales)
-  const [isLocked, setIsLocked] = useState(match.is_played)
-
-  useEffect(() => {
-    fetchData()
+  const fetchMatchData = useCallback(async () => {
+    try {
+      const [eRes, pRes, aRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/matches/${match.id}/events`),
+        axios.get(`${API_BASE_URL}/matches/${match.id}/players`),
+        axios.get(`${API_BASE_URL}/matches/${match.id}/audit`)
+      ])
+      setEvents(eRes.data)
+      setPlayers(pRes.data)
+      setAudit(aRes.data)
+    } catch (e) { console.error(e) }
   }, [match.id])
 
-  const fetchData = async () => {
+  useEffect(() => { fetchMatchData() }, [fetchMatchData])
+
+  const handleAddEvent = async (playerId: number, type: string) => {
     try {
-      const [playersRes, eventsRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/matches/${match.id}/players`),
-        axios.get(`${API_BASE_URL}/matches/${match.id}/events`)
-      ])
-      setPlayers(playersRes.data)
-      setEvents(eventsRes.data)
-      setLoading(false)
-    } catch (error) {
-      console.error('Error:', error)
-    }
+      await axios.post(`${API_BASE_URL}/match-events`, { match_id: match.id, player_id: playerId, event_type: type, minute: parseInt(eventMinute) || 0 })
+      setEventMinute(''); fetchMatchData();
+    } catch (e) { alert('Error') }
   }
 
-  const handleAddEvent = async () => {
-    if (isLocked) return
-    if (!selectedPlayer || !minute) return alert('Selecciona jugador y minuto')
+  const handleDeleteEvent = async (id: number) => {
     try {
-      await axios.post(`${API_BASE_URL}/match-events`, {
-        match_id: match.id,
-        player_id: parseInt(selectedPlayer),
-        event_type: eventType,
-        minute: parseInt(minute)
-      })
-      setSelectedPlayer('')
-      setMinute('')
-      fetchData()
-    } catch (error) {
-      alert('Error al crear evento')
-    }
+      await axios.delete(`${API_BASE_URL}/match-events/${id}`)
+      fetchMatchData()
+    } catch (e) { alert('Error') }
   }
 
-  const handleDeleteEvent = async (eventId: number) => {
-    if (isLocked) return
-    if(!confirm('¿Eliminar evento?')) return
+  const toggleMatchStatus = async () => {
     try {
-      await axios.delete(`${API_BASE_URL}/match-events/${eventId}`)
-      fetchData()
-    } catch (error) {
-      alert('Error al eliminar evento')
-    }
-  }
-
-  const homePlayers = players.filter(p => p.team_id === match.home_team_id && p.name.toLowerCase().includes(homeSearch.toLowerCase()))
-  const awayPlayers = players.filter(p => p.team_id === match.away_team_id && p.name.toLowerCase().includes(awaySearch.toLowerCase()))
-
-  const currentHomeScore = events.filter(e => e.event_type === 'GOAL' && players.find(p => p.id === e.player_id)?.team_id === match.home_team_id).length
-  const currentAwayScore = events.filter(e => e.event_type === 'GOAL' && players.find(p => p.id === e.player_id)?.team_id === match.away_team_id).length
-
-  const handleFinishMatch = async () => {
-    if (!confirm('¿Finalizar el partido? Se bloqueará la edición para evitar cambios accidentales.')) return
-    try {
-      await axios.put(`${API_BASE_URL}/matches/${match.id}/result`, {
-        home_score: currentHomeScore,
-        away_score: currentAwayScore,
-        is_played: true
-      })
+      await axios.put(`${API_BASE_URL}/matches/${match.id}/result`, { home_score: match.home_score, away_score: match.away_score, is_played: !match.is_played })
       onClose()
-    } catch (error) {
-      alert('Error al finalizar partido')
-    }
+    } catch (e) { alert('Error') }
   }
 
-  const handleUnlockMatch = async () => {
-      if(!confirm('ATENCIÓN: Estás desbloqueando un partido finalizado. Esto debería hacerlo solo un administrador. ¿Continuar?')) return
-      
-      try {
-        // En el futuro aquí iría la validación de rol de Admin
-        await axios.put(`${API_BASE_URL}/matches/${match.id}/result`, {
-            home_score: currentHomeScore,
-            away_score: currentAwayScore,
-            is_played: false // Lo reabrimos
-        })
-        setIsLocked(false)
-        alert('Partido desbloqueado para correcciones.')
-      } catch (error) {
-          alert('Error al desbloquear')
-      }
-  }
+  const filteredPlayers = players.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
   return (
-    <div className="fixed inset-0 bg-gray-900 z-50 flex flex-col font-sans">
-      
-      {/* 1. HEADER */}
-      <div className="bg-gray-800 border-b border-gray-700 p-4 shrink-0 flex items-center justify-between shadow-lg z-10">
-        <div className="flex gap-2">
-            <button onClick={onClose} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-white font-bold transition-colors text-sm">
-               <ArrowLeft className="w-4 h-4" /> Volver
-            </button>
-            
-            {isLocked ? (
-                <button onClick={handleUnlockMatch} className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-500 px-4 py-2 rounded-lg text-white font-bold transition-colors text-sm border border-yellow-400">
-                    <Unlock className="w-4 h-4" /> Desbloquear (Admin)
-                </button>
-            ) : (
-                <button onClick={handleFinishMatch} className="flex items-center gap-2 bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-white font-bold transition-colors text-sm shadow-lg shadow-green-900/20">
-                    <Flag className="w-4 h-4" /> Finalizar Partido
-                </button>
-            )}
-        </div>
-
+    <div className="fixed inset-0 bg-gray-950 z-50 flex flex-col font-sans overflow-hidden animate-in fade-in duration-300">
+      <header className="bg-gray-900 border-b border-gray-800 p-4 flex items-center justify-between shrink-0">
+        <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-full transition-colors"><ArrowLeft /></button>
         <div className="flex items-center gap-8">
            <div className="text-right">
-              <div className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">{match.home_team.club.name}</div>
-              <div className="text-4xl font-black text-white leading-none">{currentHomeScore}</div>
+              <div className="text-[10px] font-black uppercase text-gray-500 tracking-widest">{match.home_team.club.name}</div>
+              <div className="text-3xl font-black italic">{match.home_score}</div>
            </div>
-           <div className="text-gray-500 text-2xl font-light">vs</div>
+           <div className="bg-gray-800 px-4 py-1 rounded-full text-[10px] font-black text-indigo-400 border border-indigo-500/20">VS</div>
            <div className="text-left">
-              <div className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">{match.away_team.club.name}</div>
-              <div className="text-4xl font-black text-white leading-none">{currentAwayScore}</div>
+              <div className="text-[10px] font-black uppercase text-gray-500 tracking-widest">{match.away_team.club.name}</div>
+              <div className="text-3xl font-black italic">{match.away_score}</div>
            </div>
         </div>
-        <div className="w-32 hidden sm:block"></div>
-      </div>
+        <button onClick={toggleMatchStatus} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${match.is_played ? 'bg-yellow-600 text-black' : 'bg-green-600 text-white shadow-lg shadow-green-600/20'}`}>
+           {match.is_played ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+           {match.is_played ? 'Reabrir Partido' : 'Finalizar Partido'}
+        </button>
+      </header>
 
-      <div className="flex-1 flex flex-col overflow-hidden relative">
-        
-        {isLocked && (
-            <div className="absolute inset-0 z-40 bg-gray-900/80 backdrop-blur-sm flex flex-col items-center justify-center pointer-events-none">
-                <Lock className="w-16 h-16 text-gray-500 mb-4" />
-                <h2 className="text-2xl font-bold text-gray-300">Partido Finalizado</h2>
-                <p className="text-gray-400 mt-2">La edición está bloqueada. Contacta al administrador para correcciones.</p>
+      <nav className="bg-gray-900 border-b border-gray-800 flex justify-center gap-2 p-2 shrink-0">
+         <button onClick={() => setActiveTab('control')} className={`px-8 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'control' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-800'}`}>Control</button>
+         <button onClick={() => setActiveTab('audit')} className={`px-8 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'audit' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-800'}`}>Bitácora</button>
+      </nav>
+
+      <main className="flex-1 overflow-hidden flex flex-col p-6 max-w-6xl mx-auto w-full">
+        {activeTab === 'control' && (
+          <div className="flex-1 flex flex-col overflow-hidden gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-hidden">
+               
+               <section className="bg-gray-900 rounded-3xl border border-gray-800 flex flex-col overflow-hidden shadow-2xl">
+                  <div className="p-4 border-b border-gray-800 space-y-4">
+                     <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                        <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-xl pl-10 pr-4 py-2 text-xs focus:border-indigo-500 outline-none transition-all" placeholder="Buscar jugador..." />
+                     </div>
+                     <div className="flex items-center gap-3">
+                        <label className="text-[10px] font-black uppercase text-indigo-400 italic">Minuto Evento:</label>
+                        <input type="number" value={eventMinute} onChange={e => setEventMinute(e.target.value)} className="w-20 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 text-xs font-black text-center focus:border-indigo-500 outline-none" placeholder="0" />
+                     </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2">
+                     {filteredPlayers.map(p => (
+                       <div key={p.id} className="bg-gray-950/50 p-3 rounded-2xl border border-gray-800 flex items-center justify-between group hover:border-indigo-500/30 transition-all">
+                          <div>
+                             <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{p.team_id === match.home_team_id ? 'Local' : 'Visita'}</div>
+                             <div className="font-black text-xs uppercase">{p.name} <span className="text-indigo-500 ml-1">#{p.number || '-'}</span></div>
+                          </div>
+                          <div className="flex gap-2">
+                             <button onClick={() => handleAddEvent(p.id, 'GOAL')} className="bg-green-600/10 text-green-500 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase border border-green-500/20 hover:bg-green-600 hover:text-white transition-all">Gol</button>
+                             <button onClick={() => handleAddEvent(p.id, 'YELLOW_CARD')} className="bg-yellow-500/10 text-yellow-500 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase border border-yellow-500/20 hover:bg-yellow-500 hover:text-black transition-all">🟨</button>
+                             <button onClick={() => handleAddEvent(p.id, 'RED_CARD')} className="bg-red-600/10 text-red-500 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase border border-red-500/20 hover:bg-red-600 hover:text-white transition-all">🟥</button>
+                          </div>
+                       </div>
+                     ))}
+                  </div>
+               </section>
+
+               <section className="bg-gray-900 rounded-3xl border border-gray-800 flex flex-col overflow-hidden shadow-2xl">
+                  <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+                     <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500 italic">Sucesos del Partido</h3>
+                     <Save className="w-4 h-4 text-indigo-500" />
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3">
+                     {events.sort((a,b) => b.id - a.id).map(e => (
+                       <div key={e.id} className="bg-gray-950 p-4 rounded-2xl border border-gray-800 flex items-center justify-between group animate-in slide-in-from-right-4">
+                          <div className="flex items-center gap-4">
+                             <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center font-black text-indigo-400 text-sm italic border border-gray-800 shadow-inner">{e.minute}'</div>
+                             <div>
+                                <div className="text-[9px] font-black uppercase text-indigo-500 mb-0.5">{e.event_type}</div>
+                                <div className="text-xs font-black uppercase">{e.player.name}</div>
+                             </div>
+                          </div>
+                          <button onClick={() => handleDeleteEvent(e.id)} className="p-2 text-gray-700 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                       </div>
+                     ))}
+                  </div>
+               </section>
+
             </div>
+          </div>
         )}
 
-        {/* 2. LÍNEA DE TIEMPO */}
-        <div className="bg-gray-900/50 p-4 border-b border-gray-800 h-1/4 min-h-[120px] overflow-y-auto custom-scrollbar">
-           <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 sticky top-0 bg-gray-900/90 py-1 backdrop-blur-sm w-full">Historial de Eventos</h3>
-             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-               {events.slice().reverse().map(event => (
-                 <div key={event.id} className="bg-gray-800 border border-gray-700 p-3 rounded-lg flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-2">
-                    <div className="flex items-center gap-3">
-                       <span className="bg-gray-900 text-indigo-400 font-mono font-bold px-2 py-1 rounded text-sm">{event.minute}'</span>
-                       <div>
-                          <div className="text-xs font-bold text-gray-200 flex items-center gap-1">{event.event_type === 'GOAL' ? '⚽ GOL' : event.event_type === 'YELLOW_CARD' ? '🟨 Amarilla' : '🟥 Roja'}</div>
-                          <div className="text-[10px] text-gray-400 uppercase">{event.player.name}</div>
-                       </div>
-                    </div>
-                    {!isLocked && <button onClick={() => handleDeleteEvent(event.id)} className="text-gray-600 hover:text-red-500 p-1"><Trash2 className="w-4 h-4" /></button>}
-                 </div>
-               ))}
+        {activeTab === 'audit' && (
+          <div className="bg-gray-900 rounded-3xl border border-gray-800 overflow-hidden flex flex-col flex-1 shadow-2xl">
+             <div className="overflow-y-auto p-6 custom-scrollbar space-y-4">
+                {audit.map(log => (
+                  <div key={log.id} className="flex gap-4 items-start bg-gray-950/50 p-4 rounded-2xl border border-gray-800 border-l-4 border-l-indigo-600">
+                     <div className="text-[10px] font-mono text-gray-600 whitespace-nowrap pt-1">{new Date(log.timestamp).toLocaleTimeString()}</div>
+                     <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                           <span className="text-[9px] font-black uppercase text-indigo-400 tracking-widest">{log.user?.username || 'Sistema'}</span>
+                           <Flag className="w-2.5 h-2.5 text-gray-700" />
+                           <span className="text-[9px] font-black uppercase text-gray-500">{log.action}</span>
+                        </div>
+                        <p className="text-xs font-bold text-gray-300 uppercase tracking-tight italic">{log.details}</p>
+                     </div>
+                  </div>
+                ))}
              </div>
-        </div>
-
-        {/* 3. AREA DE CONTROL */}
-        <div className={`flex-1 bg-gray-950 p-4 sm:p-6 overflow-y-auto ${isLocked ? 'opacity-20 pointer-events-none' : ''}`}>
-           <div className="max-w-5xl mx-auto space-y-6">
-              <div className="flex justify-center gap-4">
-                 <button onClick={() => setEventType('GOAL')} className={`px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 border-2 transition-all ${eventType === 'GOAL' ? 'border-green-500 bg-green-900/30 text-green-400' : 'border-gray-700 bg-gray-800 text-gray-400'}`}>⚽ GOL</button>
-                 <button onClick={() => setEventType('YELLOW_CARD')} className={`px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 border-2 transition-all ${eventType === 'YELLOW_CARD' ? 'border-yellow-500 bg-yellow-900/30 text-yellow-400' : 'border-gray-700 bg-gray-800 text-gray-400'}`}>🟨 AMARILLA</button>
-                 <button onClick={() => setEventType('RED_CARD')} className={`px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 border-2 transition-all ${eventType === 'RED_CARD' ? 'border-red-500 bg-red-900/30 text-red-400' : 'border-gray-700 bg-gray-800 text-gray-400'}`}>🟥 ROJA</button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 sm:gap-8">
-                 {/* Local */}
-                 <div className="space-y-2">
-                    <div className="relative"><Search className="w-3 h-3 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" /><input type="text" placeholder="Buscar..." value={homeSearch} onChange={(e) => setHomeSearch(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-8 pr-3 py-2 text-[11px] text-white focus:border-indigo-500 outline-none" /></div>
-                    <div className={`rounded-xl border-2 overflow-hidden transition-all ${players.find(p => p.id.toString() === selectedPlayer)?.team_id === match.home_team_id ? 'border-indigo-500' : 'border-gray-800'}`}>
-                       <div className="bg-gray-900 h-64 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                          {homePlayers.map(p => (
-                             <button key={p.id} onClick={() => setSelectedPlayer(p.id.toString())} className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-colors ${selectedPlayer === p.id.toString() ? 'bg-indigo-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}><span className="truncate mr-2 text-left">{p.name}</span><span className="font-mono text-xs opacity-50">#{p.number}</span></button>
-                          ))}
-                       </div>
-                    </div>
-                 </div>
-
-                 {/* Visita */}
-                 <div className="space-y-2">
-                    <div className="relative"><Search className="w-3 h-3 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" /><input type="text" placeholder="Buscar..." value={awaySearch} onChange={(e) => setAwaySearch(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-8 pr-3 py-2 text-[11px] text-white focus:border-indigo-500 outline-none" /></div>
-                    <div className={`rounded-xl border-2 overflow-hidden transition-all ${players.find(p => p.id.toString() === selectedPlayer)?.team_id === match.away_team_id ? 'border-yellow-500' : 'border-gray-800'}`}>
-                       <div className="bg-gray-900 h-64 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                          {awayPlayers.map(p => (
-                             <button key={p.id} onClick={() => setSelectedPlayer(p.id.toString())} className={`w-full flex justify-between items-center px-3 py-2 rounded-lg text-sm transition-colors ${selectedPlayer === p.id.toString() ? 'bg-yellow-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}><span className="truncate mr-2 text-left">{p.name}</span><span className="font-mono text-xs opacity-50">#{p.number}</span></button>
-                          ))}
-                       </div>
-                    </div>
-                 </div>
-              </div>
-           </div>
-        </div>
-      </div>
-
-      {/* 4. FOOTER */}
-      <div className={`bg-gray-800 border-t border-gray-700 p-4 shrink-0 shadow-2xl z-20 ${isLocked ? 'opacity-20 pointer-events-none' : ''}`}>
-         <div className="max-w-3xl mx-auto flex gap-4">
-            <div className="w-24 shrink-0"><input type="number" value={minute} onChange={(e) => setMinute(e.target.value)} className="w-full bg-gray-900 border border-gray-600 text-white text-center font-bold text-xl rounded-lg h-12 outline-none" placeholder="Min" /></div>
-            <button onClick={handleAddEvent} disabled={!selectedPlayer || !minute} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wide rounded-lg h-12 shadow-lg"><Save className="w-5 h-5 inline mr-2" /> Registrar Incidencia</button>
-         </div>
-      </div>
+          </div>
+        )}
+      </main>
     </div>
   )
 }

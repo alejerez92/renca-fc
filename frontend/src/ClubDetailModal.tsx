@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { X, Shield } from 'lucide-react'
 
-const API_BASE_URL = 'http://localhost:8000'
+const API_BASE_URL = 'https://renca-fc.onrender.com'
 
 function ClubDetailModal({ clubId, onClose }: { clubId: number, onClose: () => void }) {
   const [clubData, setClubData] = useState<any>(null)
