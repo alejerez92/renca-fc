@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { 
   PlusCircle, Users, Calendar, Trophy, Edit, X as CloseIcon, 
-  Trash2, Shield, PlayCircle, History, AlertTriangle, 
+  Trash2, Shield, PlayCircle, AlertTriangle, 
   Upload, Lock, LogOut, User as UserIcon,
   UserPlus, ShieldCheck, Clock, Save 
 } from 'lucide-react'
