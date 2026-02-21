@@ -71,7 +71,7 @@ function PublicDashboard() {
     setLoading(true)
     try {
       let url = `${API_BASE_URL}/leaderboard/${selectedCategoryId}?series=${adultSeries}`
-      if (selectedCategoryId === 'adultos') url = `${API_BASE_URL}/leaderboard/aggregated/adultos?series=${adultSeries}`
+      if (String(selectedCategoryId) === 'adultos') url = `${API_BASE_URL}/leaderboard/aggregated/adultos?series=${adultSeries}`
       const res = await axios.get(url)
       setLeaderboard(res.data || [])
     } catch (e) { console.error(e) } finally { setLoading(false) }

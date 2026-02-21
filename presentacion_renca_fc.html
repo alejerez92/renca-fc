@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AJI Solutions - Gestión Deportiva Inteligente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-text {
+            background: linear-gradient(90deg, #6366f1, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+        .img-card { border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s ease; }
+        .img-card:hover { border-color: #6366f1; transform: scale(1.02); }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 selection:bg-indigo-500/30 overflow-x-hidden">
+
+    <!-- Hero Section -->
+    <header class="relative overflow-hidden py-24 px-6 border-b border-gray-800 text-center">
+        <div class="max-w-6xl mx-auto relative z-10">
+            <span class="bg-indigo-500/10 text-indigo-400 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border border-indigo-500/20">Lanzamiento 2026</span>
+            <h1 class="text-5xl md:text-7xl font-black mt-8 mb-6 tracking-tighter">
+                Moderniza tu Liga con <br/><span class="gradient-text">Tecnología de Élite</span>
+            </h1>
+            <p class="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed font-medium">
+                La plataforma definitiva para gestionar clubes, jugadores y resultados en vivo. Transparencia total, estadísticas automáticas y experiencia profesional para tus hinchas.
+            </p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <div class="bg-indigo-600 px-8 py-4 rounded-2xl font-black text-white shadow-xl shadow-indigo-500/20">SOFTWARE LIVE CLOUD</div>
+                <div class="bg-gray-800 px-8 py-4 rounded-2xl font-black text-gray-300 border border-gray-700 uppercase tracking-widest">Mobile Ready</div>
+            </div>
+        </div>
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full opacity-20 pointer-events-none">
+            <div class="absolute top-1/4 left-1/4 w-64 h-64 bg-indigo-600 rounded-full blur-[120px]"></div>
+            <div class="absolute bottom-1/4 right-1/4 w-64 h-64 bg-purple-600 rounded-full blur-[120px]"></div>
+        </div>
+    </header>
+
+    <!-- Galería de Funcionalidades Reales -->
+    <section class="py-24 px-6 max-w-7xl mx-auto space-y-32">
+        
+        <!-- 1. Resultados en Vivo -->
+        <div class="flex flex-col lg:flex-row items-center gap-16">
+            <div class="flex-1 space-y-6">
+                <div class="bg-indigo-500/10 text-indigo-400 w-12 h-12 rounded-2xl flex items-center justify-center mb-4">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <h2 class="text-4xl font-black uppercase tracking-tighter leading-none italic">Resultados <br/><span class="text-indigo-500">En Tiempo Real</span></h2>
+                <p class="text-gray-400 text-lg leading-relaxed font-medium">Los hinchas ya no tienen que esperar. Los resultados se actualizan automáticamente en el dashboard público. Todo el fixture a un click de distancia.</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-900/50 p-4 rounded-2xl border border-gray-800">
+                        <span class="block text-indigo-400 font-black text-xl italic tracking-tighter">AUTO-REFRESH</span>
+                        <span class="text-xs font-bold text-gray-500 uppercase tracking-widest">Cada 30 segundos</span>
+                    </div>
+                    <div class="bg-gray-900/50 p-4 rounded-2xl border border-gray-800">
+                        <span class="block text-indigo-400 font-black text-xl italic tracking-tighter">FIXTURE INTELIGENTE</span>
+                        <span class="text-xs font-bold text-gray-500 uppercase tracking-widest">Por Fecha y Cancha</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1">
+                <img src="resultados_parciales.png" alt="Fixture Real" class="rounded-[32px] shadow-2xl img-card" />
+            </div>
+        </div>
+
+        <!-- 2. Incidencias y Transparencia -->
+        <div class="flex flex-col lg:flex-row-reverse items-center gap-16">
+            <div class="flex-1 space-y-6">
+                <div class="bg-green-500/10 text-green-400 w-12 h-12 rounded-2xl flex items-center justify-center mb-4">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <h2 class="text-4xl font-black uppercase tracking-tighter leading-none italic text-right">Incidencias <br/><span class="text-green-500">Minuto a Minuto</span></h2>
+                <p class="text-gray-400 text-lg leading-relaxed font-medium text-right text-balance">Cada gol y cada tarjeta quedan registrados en la cronología oficial. Transparencia total para delegados y presidentes de clubes.</p>
+                <div class="flex justify-end">
+                    <div class="bg-green-500/10 p-4 rounded-2xl border border-green-500/20 text-right w-fit">
+                        <span class="block text-green-400 font-black text-xl italic tracking-tighter">CAJA NEGRA</span>
+                        <span class="text-xs font-bold text-gray-500 uppercase tracking-widest">Auditoría de sucesos</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1">
+                <img src="resultado_en_vivo.png" alt="Incidencias Reales" class="rounded-[32px] shadow-2xl img-card" />
+            </div>
+        </div>
+
+        <!-- 3. Estadísticas y Goleadores -->
+        <div class="flex flex-col lg:flex-row items-center gap-16">
+            <div class="flex-1 space-y-6">
+                <div class="bg-yellow-500/10 text-yellow-500 w-12 h-12 rounded-2xl flex items-center justify-center mb-4">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <h2 class="text-4xl font-black uppercase tracking-tighter leading-none italic">Ranking de <br/><span class="text-yellow-500">Goleadores</span></h2>
+                <p class="text-gray-400 text-lg leading-relaxed font-medium">Motiva a tus jugadores con una tabla de goleadores de nivel profesional. El sistema suma los goles automáticamente desde las incidencias cargadas.</p>
+                <div class="bg-gray-900/50 p-6 rounded-2xl border border-gray-800">
+                    <ul class="space-y-3 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
+                        <li class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-yellow-500"></div> Top 3 Visual Destacado</li>
+                        <li class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-yellow-500"></div> Filtro por Categoría</li>
+                        <li class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-yellow-500"></div> Vinculación con Logo de Club</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="flex-1">
+                <img src="goledores.png" alt="Goleadores Reales" class="rounded-[32px] shadow-2xl img-card" />
+            </div>
+        </div>
+
+        <!-- 4. Tablas y Categorías -->
+        <div class="flex flex-col lg:flex-row-reverse items-center gap-16">
+            <div class="flex-1 space-y-6">
+                <div class="bg-purple-500/10 text-purple-400 w-12 h-12 rounded-2xl flex items-center justify-center mb-4">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                </div>
+                <h2 class="text-4xl font-black uppercase tracking-tighter leading-none italic text-right">Todas las <br/><span class="text-purple-500">Categorías</span></h2>
+                <p class="text-gray-400 text-lg leading-relaxed font-medium text-right">Desde infantiles hasta senior. El sistema organiza automáticamente cada división con su propia tabla de posiciones, fixture y goleadores.</p>
+                <div class="flex justify-end gap-2">
+                    <span class="px-3 py-1 bg-gray-900 border border-gray-800 rounded-lg text-[9px] font-black uppercase text-purple-400">Infantiles</span>
+                    <span class="px-3 py-1 bg-gray-900 border border-gray-800 rounded-lg text-[9px] font-black uppercase text-purple-400">Adultos</span>
+                    <span class="px-3 py-1 bg-gray-900 border border-gray-800 rounded-lg text-[9px] font-black uppercase text-purple-400">Senior</span>
+                </div>
+            </div>
+            <div class="flex-1">
+                <img src="tabla_por_categoria.png" alt="Tablas Reales" class="rounded-[32px] shadow-2xl img-card" />
+            </div>
+        </div>
+
+    </section>
+
+    <!-- Inversión Sección Impacto (Igual que antes) -->
+    <section class="bg-gray-900/50 py-24 px-6 border-y border-gray-800 relative">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-black mb-4 uppercase tracking-tighter italic">Inversión Inteligente</h2>
+                <div class="h-1 w-24 bg-indigo-600 mx-auto rounded-full"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Tarjeta Setup -->
+                <div class="bg-gray-950 p-10 rounded-[40px] border-2 border-indigo-500 relative overflow-hidden shadow-2xl shadow-indigo-500/10 transition-all hover:border-indigo-400">
+                    <div class="absolute -top-4 -right-4 bg-indigo-600 text-white px-8 py-4 rounded-bl-3xl font-black text-sm rotate-12">OFERTA 50%</div>
+                    <h3 class="text-xs font-black text-indigo-400 uppercase tracking-[0.3em] mb-2">Puesta en Marcha</h3>
+                    <div class="flex items-baseline gap-2 mb-6">
+                        <span class="text-gray-600 line-through text-2xl font-bold">$600.000</span>
+                        <span class="text-5xl font-black text-white">$300.000</span>
+                    </div>
+                    <div class="bg-indigo-500/10 p-4 rounded-2xl border border-indigo-500/20 mb-8">
+                        <p class="text-indigo-300 font-bold text-sm text-center italic">¡Solo $7.895 por club!</p>
+                        <p class="text-gray-400 text-[10px] text-center mt-1 uppercase tracking-widest font-black opacity-60">Basado en 38 clubes</p>
+                    </div>
+                    <ul class="space-y-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                        <li class="flex items-center gap-2 text-indigo-400"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"></path></svg> Hosting & Dominio Incluido</li>
+                        <li class="flex items-center gap-2 text-indigo-400"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"></path></svg> Capacitación Super Admin</li>
+                        <li class="flex items-center gap-2 text-indigo-400"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"></path></svg> Soporte Permanente</li>
+                    </ul>
+                </div>
+
+                <!-- Tarjeta Mantención -->
+                <div class="bg-gray-900/50 p-10 rounded-[40px] border border-gray-800 flex flex-col justify-center transition-all hover:bg-gray-900">
+                    <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.3em] mb-2">Mantención Mensual</h3>
+                    <div class="flex items-baseline gap-2 mb-6">
+                        <span class="text-5xl font-black text-white">$1.000</span>
+                        <span class="text-gray-500 font-bold text-lg">/ por club</span>
+                    </div>
+                    <p class="text-gray-400 text-sm leading-relaxed mb-8 font-medium italic">"Garantizamos la infraestructura 24/7 y la seguridad de tus datos en la nube por una inversión simbólica."</p>
+                    <div class="space-y-4">
+                        <div class="h-px bg-gray-800 w-full"></div>
+                        <div class="flex justify-between items-center text-[10px] font-black uppercase text-gray-500">
+                            <span>Soporte AJI Solutions</span>
+                            <span class="text-green-400">Activo</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-20 text-center border-t border-gray-800">
+        <h2 class="text-2xl font-black mb-4 uppercase tracking-tighter">Digitalización by <span class="gradient-text">AJI SOLUTIONS</span></h2>
+        <div class="text-xs text-gray-600 uppercase tracking-[0.2em] font-bold">
+            &copy; 2026 AJI Solutions - Software Engineering
+        </div>
+    </footer>
+
+</body>
+</html>
