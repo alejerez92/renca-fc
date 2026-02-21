@@ -246,7 +246,7 @@ def bulk_create_players_from_excel(db: Session, team_id: int, df):
 
 def get_top_scorers(db: Session, category_id: any, series: str = "HONOR"):
     query = db.query(Player.id, Player.name.label("player_name"), Club.name.label("club_name"), Club.logo_url.label("club_logo"), func.count(MatchEvent.id).label("total_goals")).join(MatchEvent, Player.id == MatchEvent.player_id).join(Team, Player.team_id == Team.id).join(Club, Team.club_id == Club.id).filter(MatchEvent.event_type == "GOAL")
-    if String(category_id) == "adultos":
+    if str(category_id) == "adultos":
         cat_ids = [c.id for c in db.query(Category).filter(Category.parent_category == "Adultos").all()]
         query = query.filter(Team.category_id.in_(cat_ids)).filter(Club.league_series == series)
     else:
