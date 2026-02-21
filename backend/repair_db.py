@@ -17,33 +17,47 @@ engine = create_engine(DATABASE_URL)
 
 def repair_database():
     with engine.connect() as conn:
-        print("Verificando y reparando tablas...")
+        print("Verificando y reparando todas las tablas...")
         
-        # 1. Agregar columna match_day_id a la tabla matches si no existe
+        # 1. Tabla Matches
         try:
             conn.execute(text("ALTER TABLE matches ADD COLUMN IF NOT EXISTS match_day_id INTEGER REFERENCES match_days(id)"))
             conn.commit()
-            print("- Columna 'match_day_id' asegurada en tabla 'matches'.")
-        except Exception as e:
-            print(f"- Error al agregar match_day_id: {e}")
+            print("- OK: matches.match_day_id")
+        except Exception as e: print(f"- Error matches.match_day_id: {e}")
 
-        # 2. Asegurar que la tabla match_events tenga la columna minute
+        # 2. Tabla Venues (EL ERROR ACTUAL)
+        try:
+            conn.execute(text("ALTER TABLE venues ADD COLUMN IF NOT EXISTS location VARCHAR"))
+            conn.commit()
+            print("- OK: venues.location")
+        except Exception as e: print(f"- Error venues.location: {e}")
+
+        # 3. Tabla Match Events
         try:
             conn.execute(text("ALTER TABLE match_events ADD COLUMN IF NOT EXISTS minute INTEGER DEFAULT 0"))
             conn.commit()
-            print("- Columna 'minute' asegurada en tabla 'match_events'.")
-        except Exception as e:
-            print(f"- Error al agregar minute: {e}")
+            print("- OK: match_events.minute")
+        except Exception as e: print(f"- Error match_events.minute: {e}")
 
-        # 3. Asegurar que la tabla clubs tenga league_series
+        # 4. Tabla Clubs
         try:
             conn.execute(text("ALTER TABLE clubs ADD COLUMN IF NOT EXISTS league_series VARCHAR DEFAULT 'HONOR'"))
             conn.commit()
-            print("- Columna 'league_series' asegurada en tabla 'clubs'.")
-        except Exception as e:
-            print(f"- Error al agregar league_series: {e}")
+            print("- OK: clubs.league_series")
+        except Exception as e: print(f"- Error clubs.league_series: {e}")
 
-    print("Reparación completada.")
+        # 5. Tabla Categories (Por si acaso)
+        try:
+            conn.execute(text("ALTER TABLE categories ADD COLUMN IF NOT EXISTS parent_category VARCHAR"))
+            conn.execute(text("ALTER TABLE categories ADD COLUMN IF NOT EXISTS points_win INTEGER DEFAULT 3"))
+            conn.execute(text("ALTER TABLE categories ADD COLUMN IF NOT EXISTS points_draw INTEGER DEFAULT 1"))
+            conn.execute(text("ALTER TABLE categories ADD COLUMN IF NOT EXISTS points_loss INTEGER DEFAULT 0"))
+            conn.commit()
+            print("- OK: categories columns")
+        except Exception as e: print(f"- Error categories: {e}")
+
+    print("Reparación TOTAL completada.")
 
 if __name__ == "__main__":
     repair_database()
