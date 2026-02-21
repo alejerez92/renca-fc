@@ -80,7 +80,7 @@ function AdminDashboard() {
   const fetchUsers = async () => {
     if (currentUser !== 'admin_renca') return
     try {
-      const res = await axios.get(`${API_BASE_URL}/players`, authHeader) // Fallback simple para ver usuarios si la tabla existe
+      const res = await axios.get(`${API_BASE_URL}/users`, authHeader)
       setUsers(res.data)
     } catch (e) { console.error(e) }
   }
@@ -142,6 +142,7 @@ function AdminDashboard() {
   // --- EFECTOS ---
   useEffect(() => {
     fetchClubs(); fetchCategories(); fetchVenues(); fetchMatchDays();
+    if (currentUser === 'admin_renca') fetchUsers();
   }, [])
 
   useEffect(() => {
@@ -170,9 +171,10 @@ function AdminDashboard() {
         team_id: parseInt(uploadTeamId),
         name: indivName,
         dni: indivDni,
-        number: indivNumber ? parseInt(indivNumber) : null
+        number: indivNumber ? parseInt(indivNumber) : null,
+        birth_date: indivBirthDate || null
       }, authHeader)
-      setIndivName(''); setIndivDni(''); setIndivNumber('');
+      setIndivName(''); setIndivDni(''); setIndivNumber(''); setIndivBirthDate('');
       fetchTeamRoster(uploadTeamId)
       alert('Jugador fichado con éxito')
     } catch (e) { alert('Error al fichar jugador') }
@@ -363,6 +365,25 @@ function AdminDashboard() {
                  <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg">Registrar Acceso</button>
               </form>
            </div>
+           <div className="bg-gray-800 p-8 rounded-[32px] border border-gray-700 shadow-2xl">
+              <h3 className="text-[10px] font-black text-gray-500 mb-6 uppercase tracking-widest italic">Cuentas Activas</h3>
+              <div className="space-y-3">
+                 {users.map(u => (
+                    <div key={u.id} className="bg-gray-900/50 p-4 rounded-2xl flex items-center justify-between border border-gray-800">
+                       <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700"><ShieldCheck className={`w-5 h-5 ${u.username === 'admin_renca' ? 'text-indigo-500' : 'text-gray-500'}`} /></div>
+                          <div>
+                             <div className="font-black text-sm text-white uppercase">{u.username}</div>
+                             <div className="text-[9px] font-black text-gray-600 uppercase tracking-tighter">{u.username === 'admin_renca' ? 'Super Administrador' : 'Operador de Liga'}</div>
+                          </div>
+                       </div>
+                       {u.username !== 'admin_renca' && (
+                          <button onClick={() => handleDeleteUser(u.id)} className="text-red-500/20 hover:text-red-500 p-2 transition-all"><Trash2 className="w-5 h-5" /></button>
+                       )}
+                    </div>
+                 ))}
+              </div>
+           </div>
         </div>
       )}
 
@@ -431,7 +452,7 @@ function AdminDashboard() {
                <button onClick={() => setShowPastMatches(!showPastMatches)} className="text-[10px] font-black px-4 py-2 rounded-xl border border-gray-700 text-gray-500 hover:text-white transition-all ml-auto block uppercase tracking-widest bg-gray-950/50 shadow-inner">{showPastMatches ? 'Ocultar pasados' : 'Ver todo'}</button>
                {Object.entries(getGroupedMatches()).map(([dayName, dayMatches]) => (
                  dayMatches.length > 0 && (
-                   <div key={dayName} className="animate-in slide-in-from-bottom-4"><h3 className="text-xs font-black text-indigo-400 uppercase tracking-[0.3em] mb-4 border-b border-gray-800 pb-2 italic flex items-center gap-2"> {dayName}</h3><div className="space-y-4">
+                   <div key={dayName} className="animate-in slide-in-from-bottom-4"><h3 className="text-xs font-black text-indigo-400 uppercase tracking-[0.3em] mb-4 border-b border-gray-800 pb-2 italic flex items-center gap-2"> <Clock className="w-4 h-4 opacity-50" /> {dayName}</h3><div className="space-y-4">
                        {dayMatches.map(match => (
                          <div key={match.id} className="bg-gray-800 border border-gray-700 p-6 rounded-[32px] shadow-2xl group hover:border-indigo-500/50 transition-all relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/5 blur-[60px]"></div>
@@ -463,7 +484,6 @@ function AdminDashboard() {
       {activeTab === 'players' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 animate-in fade-in duration-500">
               <div className="space-y-8">
-                  {/* Fichaje Masivo */}
                   <div className="bg-gray-800 p-8 rounded-[40px] border border-gray-700 shadow-2xl relative overflow-hidden">
                       <h2 className="text-xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter italic text-white"><Upload className="text-indigo-500 w-6 h-6" /> Carga Masiva (Excel)</h2>
                       <form onSubmit={handleUploadPlayers} className="space-y-6">
@@ -475,7 +495,6 @@ function AdminDashboard() {
                       {uploadStatus && <div className="mt-4 p-3 rounded-lg text-center text-xs font-black uppercase tracking-widest border border-gray-700 bg-gray-900">{uploadStatus}</div>}
                   </div>
 
-                  {/* Fichaje Individual */}
                   <div className="bg-gray-800 p-8 rounded-[40px] border border-gray-700 shadow-2xl relative overflow-hidden">
                       <h2 className="text-xl font-black mb-6 flex items-center gap-3 uppercase tracking-tighter italic text-white"><IndividualIcon className="text-green-500 w-6 h-6" /> Fichaje Individual</h2>
                       <form onSubmit={handleCreateIndividualPlayer} className="space-y-4">
@@ -484,6 +503,7 @@ function AdminDashboard() {
                              <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1">RUT / DNI</label><input type="text" value={indivDni} onChange={(e) => setIndivDni(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white" required /></div>
                              <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1">Dorsal</label><input type="number" value={indivNumber} onChange={(e) => setIndivNumber(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white" /></div>
                           </div>
+                          <div><label className="text-[10px] text-gray-500 uppercase font-black tracking-widest ml-1">Fecha de Nacimiento</label><input type="date" value={indivBirthDate} onChange={(e) => setIndivBirthDate(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm text-white" /></div>
                           <button type="submit" className="w-full bg-green-600 hover:bg-green-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg" disabled={!uploadTeamId}>Fichar Jugador</button>
                       </form>
                   </div>
@@ -516,6 +536,7 @@ function AdminDashboard() {
                         <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">RUT / DNI</label><input type="text" value={editingPlayer.dni || ''} onChange={(e) => setEditingPlayer({...editingPlayer, dni: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black uppercase text-white outline-none" required /></div>
                         <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Dorsal</label><input type="number" value={editingPlayer.number || ''} onChange={(e) => setEditingPlayer({...editingPlayer, number: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-base font-black text-white outline-none" /></div>
                     </div>
+                    <div><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Fecha Nacimiento</label><input type="date" value={editingPlayer.birth_date ? editingPlayer.birth_date.split('T')[0] : ''} onChange={(e) => setEditingPlayer({...editingPlayer, birth_date: e.target.value})} className="w-full bg-gray-950 border border-gray-700 rounded-2xl p-4 text-white outline-none" /></div>
                     <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-[24px] font-black uppercase text-xs tracking-[0.4em] shadow-2xl transition-all active:scale-95 text-white"><Save className="w-4 h-4" /> Confirmar Cambios</button>
                 </form>
             </div>
