@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { Trophy, Users, Menu, X, Shield, Calendar, Clock } from 'lucide-react'
+import { Trophy, Users, Menu, X, Shield, Calendar, Clock, Lock } from 'lucide-react'
 import MatchDetailModal from './MatchDetailModal'
 import ClubDetailModal from './ClubDetailModal'
 
@@ -55,7 +55,7 @@ function PublicDashboard() {
     try {
       const res = await axios.get(`${API_BASE_URL}/categories`)
       setCategories(res.data)
-      if (res.data.length > 0 && !selectedCategoryId) setSelectedCategoryId(res.data[0].id)
+      if (res.data.length > 0 && !selectedCategory) setSelectedCategoryId(res.data[0].id)
     } catch (e) { console.error(e) }
   }
 
@@ -103,7 +103,7 @@ function PublicDashboard() {
       let found = false
       for (const d of visibleDays) {
         const start = new Date(d.start_date); const end = new Date(d.end_date); end.setHours(23,59,59,999)
-        if (mDate >= start && mDate <= end) { grouped[d.name].push(m); found = true; break }
+        if (mDate >= start && mDate <= end) { grouped[day.name].push(m); found = true; break }
       }
       if (!found && showAllMatchDays) grouped['Otros']?.push(m)
     })
@@ -135,7 +135,11 @@ function PublicDashboard() {
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-gray-700">
+        <div className="p-4 border-t border-gray-700 space-y-2">
+          <button onClick={() => window.location.href = '/login'} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-500 hover:text-white hover:bg-indigo-600/20 transition-all group">
+            <Lock className="w-4 h-4" />
+            {isSidebarOpen && <span className="text-[10px] font-black uppercase tracking-widest">Admin</span>}
+          </button>
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="w-full flex justify-center p-2 hover:bg-gray-700 rounded-lg">{isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}</button>
         </div>
       </aside>
