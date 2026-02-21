@@ -101,6 +101,9 @@ def get_match_audit_logs(db: Session, match_id: int):
     return db.query(AuditLog).options(joinedload(AuditLog.user)).filter(AuditLog.match_id == match_id).order_by(AuditLog.timestamp.desc()).all()
 
 # --- Eventos ---
+def get_match_events(db: Session, match_id: int):
+    return db.query(MatchEvent).options(joinedload(MatchEvent.player)).filter(MatchEvent.match_id == match_id).all()
+
 def create_match_event(db: Session, event: schemas.MatchEventCreate, user_id: int = None):
     db_event = MatchEvent(**event.model_dump())
     db.add(db_event)
@@ -139,6 +142,9 @@ def get_clubs(db: Session):
 def get_venues(db: Session):
     return db.query(Venue).all()
 
+def get_teams_by_category(db: Session, category_id: int):
+    return db.query(Team).options(joinedload(Team.club)).filter(Team.category_id == category_id).all()
+
 def get_matches_by_category(db: Session, category_id: int, series: str = None):
     cat = db.query(Category).filter(Category.id == category_id).first()
     query = db.query(Match).options(
@@ -149,6 +155,11 @@ def get_matches_by_category(db: Session, category_id: int, series: str = None):
     if series and cat and cat.parent_category == "Adultos":
         query = query.join(Team, Match.home_team_id == Team.id).join(Club).filter(Club.league_series == series)
     return query.order_by(Match.match_date).all()
+
+def get_match_players(db: Session, match_id: int):
+    match = db.query(Match).filter(Match.id == match_id).first()
+    if not match: return []
+    return db.query(Player).filter(or_(Player.team_id == match.home_team_id, Player.team_id == match.away_team_id)).all()
 
 def get_leaderboard(db: Session, category_id: int, series: str = "HONOR"):
     cat = db.query(Category).filter(Category.id == category_id).first()

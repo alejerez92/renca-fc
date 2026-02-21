@@ -32,7 +32,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Global Error Handler Corregido ---
 @app.middleware("http")
 async def catch_exceptions_middleware(request, call_next):
     try:
@@ -40,10 +39,7 @@ async def catch_exceptions_middleware(request, call_next):
     except Exception as exc:
         print(f"ERROR DETECTADO EN {request.url.path}:")
         traceback.print_exc()
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal Server Error", "path": request.url.path}
-        )
+        return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 def get_db():
     db = SessionLocal()
@@ -87,6 +83,10 @@ def read_club_details(club_id: int, db: Session = Depends(get_db)):
 def read_categories(db: Session = Depends(get_db)):
     return db.query(models.Category).all()
 
+@app.get("/teams/{category_id}", response_model=List[schemas.Team])
+def read_teams(category_id: int, db: Session = Depends(get_db)):
+    return crud.get_teams_by_category(db, category_id)
+
 @app.get("/matches/{category_id}", response_model=List[schemas.Match])
 def read_matches(category_id: int, series: str = None, db: Session = Depends(get_db)):
     return crud.get_matches_by_category(db, category_id, series)
@@ -128,6 +128,10 @@ def read_match_days(db: Session = Depends(get_db)):
 @app.get("/users", response_model=List[schemas.User])
 def list_users(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.get_users(db)
+
+@app.get("/teams/{team_id}/players", response_model=List[schemas.Player])
+def read_team_players(team_id: int, db: Session = Depends(get_db)):
+    return crud.get_team_players(db, team_id)
 
 @app.post("/users", response_model=schemas.User)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
