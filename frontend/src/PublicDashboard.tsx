@@ -214,13 +214,13 @@ function PublicDashboard() {
                     <div className="grid gap-3">
                       {dayMatches.map((m) => (
                         <div key={m.id} onClick={() => setViewingMatch(m)} className="bg-gray-800 border border-gray-700 p-4 rounded-xl flex items-center justify-between hover:border-gray-500 transition-all cursor-pointer">
-                          <div className="flex-1 text-right font-bold text-sm sm:text-base pr-4" onClick={(e) => { e.stopPropagation(); setViewingClub(m.home_team.club.id); }}>{m.home_team.club.name}</div>
+                          <div className="flex-1 text-right font-bold text-sm sm:text-base pr-4" onClick={(e) => { e.stopPropagation(); setViewingClub(m.home_team?.club?.id); }}>{m.home_team?.club?.name || 'Local'}</div>
                           <div className="bg-gray-900 px-4 py-2 rounded-lg flex items-center gap-3 border border-gray-700">
                              <span className="text-xl font-black">{m.home_score}</span>
                              <span className="text-gray-600 font-bold">-</span>
                              <span className="text-xl font-black">{m.away_score}</span>
                           </div>
-                          <div className="flex-1 text-left font-bold text-sm sm:text-base pl-4" onClick={(e) => { e.stopPropagation(); setViewingClub(m.away_team.club.id); }}>{m.away_team.club.name}</div>
+                          <div className="flex-1 text-left font-bold text-sm sm:text-base pl-4" onClick={(e) => { e.stopPropagation(); setViewingClub(m.away_team?.club?.id); }}>{m.away_team?.club?.name || 'Visita'}</div>
                         </div>
                       ))}
                     </div>
