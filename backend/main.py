@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 import bcrypt
@@ -31,7 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Global Error Handler para Debug ---
+# --- Global Error Handler Corregido ---
 @app.middleware("http")
 async def catch_exceptions_middleware(request, call_next):
     try:
@@ -39,10 +40,13 @@ async def catch_exceptions_middleware(request, call_next):
     except Exception as exc:
         print(f"ERROR DETECTADO EN {request.url.path}:")
         traceback.print_exc()
-        return status.HTTP_500_INTERNAL_SERVER_ERROR
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal Server Error", "path": request.url.path}
+        )
 
 def get_db():
-    db = SessionLocal(); 
+    db = SessionLocal()
     try: yield db
     finally: db.close()
 
@@ -70,7 +74,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
     return {"access_token": jwt.encode({"sub": user.username, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM), "token_type": "bearer"}
 
-# --- Rutas con response_model estricto ---
+# --- Públicas ---
 @app.get("/clubs", response_model=List[schemas.Club])
 def read_clubs(db: Session = Depends(get_db)):
     return crud.get_clubs(db)
@@ -98,7 +102,7 @@ def read_match_events(match_id: int, db: Session = Depends(get_db)):
 @app.get("/matches/{match_id}/audit")
 def read_match_audit(match_id: int, db: Session = Depends(get_db)):
     logs = crud.get_match_audit_logs(db, match_id)
-    return [{"id": l.id, "timestamp": l.timestamp, "user": {"username": l.user.username if l.user else "System"}, "action": l.action, "details": l.details} for l in logs]
+    return [{"id": l.id, "timestamp": l.timestamp, "user": {"username": l.user.username if l.user else "Sistema"}, "action": l.action, "details": l.details} for l in logs]
 
 @app.get("/top-scorers/{category_id}")
 def read_top_scorers(category_id: str, series: str = "HONOR", db: Session = Depends(get_db)):
